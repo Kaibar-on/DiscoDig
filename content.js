@@ -102,7 +102,10 @@ discoDig.innerHTML = `
     width: 100%;
     height: 100%;
 }
-
+#selectedChannel {
+    color: white;
+    text-align: center;
+}
 </style>
 
 <div id="DDContainer">
