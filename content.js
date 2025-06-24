@@ -131,7 +131,7 @@ discoDig.innerHTML = `
 
   </div>
 </div>`
-;
+    ;
 
 
 
@@ -143,6 +143,7 @@ const userSelect = document.getElementById("userSelect")
 const userTopWordsDisplay = document.getElementById("userTopWords")
 const selectedChannelDisplay = document.getElementById("selectedChannel")
 const wordCloudCanvas = document.getElementById("wordCloudCanvas")
+const timeGraphDisplay = document.getElementById("timeGraph")
 
 
 
@@ -180,9 +181,9 @@ function spawnButton() {
 
 
 function snowflakeToDate(snowflake) {
-  const discordEpoch = 1420070400000n;
-  const timestamp = (BigInt(snowflake) >> 22n) + discordEpoch;
-  return new Date(Number(timestamp));
+    const discordEpoch = 1420070400000n;
+    const timestamp = (BigInt(snowflake) >> 22n) + discordEpoch;
+    return new Date(Number(timestamp));
 }
 
 
@@ -194,6 +195,7 @@ async function openDD() {
     const chatID = window.location.href.slice(33)
     let link;
     mappedMessages.clear()
+    datedMessages.clear()
 
 
     // fetch + display name of channel
@@ -252,10 +254,19 @@ async function openDD() {
     calculateUserCounts()
     fetchWordCloud()
     fetchCommonWords()
+    displayTimeGraph()
 }
 
 
 function displayTimeGraph() {
+    let timeData = {
+        x: [...datedMessages.keys()],
+        y: [...datedMessages.values()],
+        type: 'scatter'
+    };
+
+
+    Plotly.newPlot(timeGraphDisplay, [timeData]);
 
 }
 
