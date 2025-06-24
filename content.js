@@ -68,7 +68,10 @@ discoDig.innerHTML = `
     position: absolute;
     z-index: 1000;
     padding: 20px;
-    pointer-events: none; 
+    border: 3px solid #ffffff;
+    border-radius: 25px;
+    overflow-y: scroll;
+    
 
 }
 
@@ -82,7 +85,7 @@ discoDig.innerHTML = `
 
 #dataContainer {
   display: flex;
-  justify-content: space-around;
+  flex-wrap: wrap;
   gap: 20px;
 }
 
@@ -94,9 +97,6 @@ discoDig.innerHTML = `
     border-radius: 10px;
 }
 
-.clickable {
-    pointer-events: auto;
-}
 
 #wordCloudCanvas {
     width: 100%;
@@ -121,13 +121,18 @@ discoDig.innerHTML = `
             <ol id="userTopWords"></ol>
         </div>
         <div id="wordCloud">
-            <canvas class="clickable" id="wordCloudCanvas">
+            <canvas id="wordCloudCanvas">
             </canvas>
         </div>
+        <br>
+        <div id="timeGraph">
+        </div>
     </div>
+
   </div>
-</div>
-`;
+</div>`
+;
+
 
 
 discoDig.style.display = "none"
@@ -142,6 +147,8 @@ const wordCloudCanvas = document.getElementById("wordCloudCanvas")
 
 
 let mappedMessages = new Map();
+let datedMessages = new Map();
+
 
 // event listener for discord toolbar appearing
 const observer = new MutationObserver((mutationsList) => {
@@ -172,6 +179,11 @@ function spawnButton() {
 }
 
 
+function snowflakeToDate(snowflake) {
+  const discordEpoch = 1420070400000n;
+  const timestamp = (BigInt(snowflake) >> 22n) + discordEpoch;
+  return new Date(Number(timestamp));
+}
 
 
 // open modal
@@ -186,16 +198,16 @@ async function openDD() {
 
     // fetch + display name of channel
     let response = await fetch(`https://discord.com/api/v9/channels/${chatID}`, {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-                "authorization": token
-            }
-        });
+        method: "GET",
+        headers: {
+            "Content-Type": "application/json",
+            "authorization": token
+        }
+    });
 
     channel = await response.json()
     selectedChannelDisplay.innerHTML = channel.name || `DMs w/ ${channel.recipients[0].username}`
-    
+
 
 
     // get all messages
@@ -216,16 +228,22 @@ async function openDD() {
 
         msgs = await response.json()
 
-        // add the messages to the map
         msgs.forEach((msg) => {
+            // map the senders of the msgs
             mappedMessages.set(
                 msg.author.username,
                 [...(mappedMessages.get(msg.author.username) || []), msg.content]
             );
+
+            // map the dates of the msgs
+            let date = snowflakeToDate(msg.id).toLocaleDateString();
+            datedMessages.set(date, (datedMessages.get(date) + 1 || 1));
         })
 
+        console.log(datedMessages)
+
         lastID = msgs[msgs.length - 1].id
-        console.log((i+1)*100 + " loaded")
+        console.log((i + 1) * 100 + " loaded")
     }
 
     console.log(mappedMessages)
@@ -237,7 +255,11 @@ async function openDD() {
 }
 
 
-function fetchWordCloud(){
+function displayTimeGraph() {
+
+}
+
+function fetchWordCloud() {
     // get a list of ALL words 
     // map them
     // convert it to a list
@@ -263,11 +285,11 @@ function fetchWordCloud(){
         wordCloudList.push([word, freq])
     })
 
-    console.log(wordCloudCanvas.offsetWidth )
-    wordCloudCanvas.width = wordCloudCanvas.offsetWidth 
+    console.log(wordCloudCanvas.offsetWidth)
+    wordCloudCanvas.width = wordCloudCanvas.offsetWidth
     wordCloudCanvas.height = wordCloudCanvas.offsetHeight
 
-    WordCloud(wordCloudCanvas, { list: wordCloudList, gridSize: 2, shape: "square", color: "random-light", backgroundColor: "rgb(74, 61, 214)", drawOutOfBound: false, hover: (item) => console.log(item)});
+    WordCloud(wordCloudCanvas, { list: wordCloudList, gridSize: 2, shape: "square", color: "random-light", backgroundColor: "rgb(74, 61, 214)", drawOutOfBound: false, hover: (item) => console.log(item) });
 }
 
 
