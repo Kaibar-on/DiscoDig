@@ -2,8 +2,8 @@ console.log("DiscoDig running...")
 
 // initialize variables
 const stopwords = new Set([
-    "also", "get", "got", "after", "going", "theres", "ill", "yes", "thats", "i", 
-    "im", "i'm", "r", "ur", "u", "me", "my", "myself", "we", "our", "ours", 
+    "also", "get", "got", "after", "going", "theres", "ill", "yes", "thats", "i",
+    "im", "i'm", "r", "ur", "u", "me", "my", "myself", "we", "our", "ours",
     "ourselves", "you", "your",
     "yours", "yourself", "yourselves", "he", "him", "his", "himself", "she",
     "her", "hers", "herself", "it", "its", "itself", "they", "them", "their",
@@ -198,12 +198,12 @@ discoDig.innerHTML = `
         <div id="userCounts"></div>
 
         <div id="userWordCounts">
-            <select id="userSelect" class="clickable"></select>
+            <select id="userSelect"></select>
             <ol id="userTopWords"></ol>
         </div>
 
         <div id="wordCloud">
-            <canvas id="wordCloudCanvas">
+            <canvas id="wordCloudCanvas" width="400" height="400">
             </canvas>
         </div>
         
@@ -419,7 +419,6 @@ function displayDayTimeGraph() {
             yaxis: {
                 showgrid: false,
                 showline: true
-
             }
         });
 
@@ -463,6 +462,8 @@ function fetchWordCloud() {
         mappedWords.set(word, (mappedWords.get(word) + 1 || 1));
     })
 
+
+
     console.log(mappedWords)
 
     let wordCloudList = []
@@ -470,10 +471,35 @@ function fetchWordCloud() {
         wordCloudList.push([word, freq])
     })
 
-    wordCloudCanvas.width = wordCloudCanvas.offsetWidth
-    wordCloudCanvas.height = wordCloudCanvas.offsetHeight
+    console.log(mappedWords)
+    console.log(wordCloudList)
 
-    WordCloud(wordCloudCanvas, { list: wordCloudList, gridSize: 2, shape: "square", color: "random-light", backgroundColor: "rgb(74, 61, 214)", drawOutOfBound: false, hover: (item) => console.log(item) });
+
+
+    wordCloudCanvas.width = wordCloudCanvas.offsetWidth;
+    wordCloudCanvas.height = wordCloudCanvas.offsetHeight;
+
+
+    const maxFreq = Math.max(...wordCloudList.map(([_, freq]) => freq));
+    const power = 0.4;
+    
+    WordCloud(wordCloudCanvas, {
+        list: wordCloudList,
+        gridSize: 2,
+        shape: "circle",
+        color: "random-light",
+        backgroundColor: "rgb(74, 61, 214)",
+        drawOutOfBound: true,
+        ellipticity: 1,
+        weightFactor: (freq) => {
+            const minFontSize = 10;
+            const maxFontSize = 60;
+            const normalized = Math.pow(freq / maxFreq, power);
+            return minFontSize + normalized * (maxFontSize - minFontSize);
+        },
+        // shrinkToFit: true,
+        hover: (item) => console.log(item)
+    });
 }
 
 
