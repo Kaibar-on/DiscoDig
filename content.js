@@ -25,6 +25,7 @@ let timedMessages = new Map([
     [15, 0], [16, 0], [17, 0], [18, 0], [19, 0],
     [20, 0], [21, 0], [22, 0], [23, 0]
 ]);
+let chatID;
 
 function snowflakeToDate(snowflake) {
     const discordEpoch = 1420070400000n;
@@ -101,12 +102,16 @@ discoDig.innerHTML = `
     margin-bottom: 20px;
 }
 
-#dataContainer {
-  display: flex;
+#dataScreen {
+  display: none;
   justify-content: center;
-    align-items: center;
+  align-items: center;
   flex-wrap: wrap;
   gap: 20px;
+}
+
+#loadingScreen {
+    display: none
 }
 
 #userCounts, #userWordCounts, #wordCloud {
@@ -174,7 +179,19 @@ discoDig.innerHTML = `
     <h2 id="title">DiscoDig</h2>
     <h3 id="selectedChannel"></h3>
 
-    <div id="dataContainer">
+    <div id="splashScreen">
+        <input type="number" id="nInput"> how many msgs? </input>
+        <button id="digBtn"> dig! </button>
+    </div>
+
+    <div id="loadingScreen">
+        <div id="bulldozer">
+            <img src="${bulldozerGif}" />
+        </div>
+            <p id="progress"></p>
+    </div>
+
+    <div id="dataScreen">
         <div id="userCounts"></div>
 
         <div id="userWordCounts">
@@ -195,9 +212,7 @@ discoDig.innerHTML = `
     </div>
 
     <br>
-    <div id="bulldozer">
-        <img src="${bulldozerGif}" />
-    </div>
+    
 
   </div>
 </div>`
@@ -207,9 +222,16 @@ discoDig.innerHTML = `
 discoDig.style.display = "none"
 document.body.appendChild(discoDig);
 document.getElementById("closeButton").onclick = closeDD
+document.getElementById("digBtn").onclick = dig
 document.getElementById("userSelect").onchange = fetchCommonWords
 
+
 // DDModal handles
+const splashScreen = document.getElementById("splashScreen")
+const nInput = document.getElementById("nInput")
+const loadingScreen = document.getElementById("loadingScreen")
+const progressStatus = document.getElementById("progress")
+const dataScreen = document.getElementById("dataScreen")
 const userSelect = document.getElementById("userSelect")
 const userTopWordsDisplay = document.getElementById("userTopWords")
 const selectedChannelDisplay = document.getElementById("selectedChannel")
@@ -251,13 +273,18 @@ function spawnButton() {
 
 // open modal
 async function openDD() {
-    console.log("DD opened!")
+    console.log("DD opened!");
+    discoDig.style.display = "block";
 
-    discoDig.style.display = "block"
-    const chatID = window.location.href.slice(33)
-    let link;
-    mappedMessages.clear()
-    datedMessages.clear()
+    // if still on same DM, do nothing
+    if (window.location.href.slice(33) == chatID) {
+        return
+    }
+
+    chatID = window.location.href.slice(33);
+
+    dataScreen.style.display = "none";
+    splashScreen.style.display = "block"
 
 
     // fetch + display name of channel
@@ -273,11 +300,23 @@ async function openDD() {
     selectedChannelDisplay.innerHTML = channel.name || `DMs w/ ${channel.recipients[0].username}`
 
 
+}
 
-    // get all messages
-    let n = prompt("how many msgs?")
 
-    for (let i = 0; i < Math.floor(n / 100); i++) {
+// main digging function
+async function dig() {
+    splashScreen.style.display = "none"
+    loadingScreen.style.display = "block"
+
+    mappedMessages.clear()
+    datedMessages.clear()
+    userSelect.innerHTML = ""
+    userTopWordsDisplay.innerHTML = ""
+    let link;
+
+    n = nInput.value;
+
+    for (let i = 0; i < Math.ceil(n / 100); i++) {
 
         link = `https://discord.com/api/v9/channels/${chatID}/messages?${(i != 0) && `before=${lastID}`}&limit=100`
 
@@ -311,10 +350,14 @@ async function openDD() {
         console.log(datedMessages)
 
         lastID = msgs[msgs.length - 1].id
+
         console.log((i + 1) * 100 + " loaded")
+        progressStatus.innerHTML = `${(i + 1) * 100} / ${n} messages loaded`
     }
 
     console.log(mappedMessages)
+    loadingScreen.style.display = "none"
+    dataScreen.style.display = "flex"
 
 
     calculateUserCounts()
@@ -324,12 +367,17 @@ async function openDD() {
 }
 
 
+
 // display time graph
 function displayDayTimeGraph() {
     let dayData = {
         x: [...datedMessages.keys()].reverse(),
         y: [...datedMessages.values()].reverse(),
-        type: 'scatter'
+        type: 'scatter',
+        line: {
+            color: 'rgb(255, 255, 255)',
+            width: 1
+        }
     };
 
     let timeData = {
@@ -340,7 +388,11 @@ function displayDayTimeGraph() {
             "6pm", "7pm", "8pm", "9pm", "10pm", "11pm"
         ],
         y: [...timedMessages.values()],
-        type: 'scatter'
+        type: 'scatter',
+        line: {
+            color: 'rgb(255, 255, 255)',
+            width: 1
+        }
     };
 
 
@@ -354,6 +406,14 @@ function displayDayTimeGraph() {
                 r: 40,
                 l: 40
             },
+            xaxis: {
+                showgrid: false
+            },
+            yaxis: {
+                showgrid: false,
+                showline: true
+
+            }
         });
 
 
@@ -367,6 +427,13 @@ function displayDayTimeGraph() {
                 r: 40,
                 l: 40
             },
+            xaxis: {
+                showgrid: false
+            },
+            yaxis: {
+                showgrid: false,
+                showline: true
+            }
         });
 }
 
@@ -487,7 +554,5 @@ function fetchCommonWords() {
 
 function closeDD() {
     discoDig.style.display = "none"
-    userSelect.innerHTML = ""
-    userTopWordsDisplay.innerHTML = ""
     console.log("DD closed")
 }
