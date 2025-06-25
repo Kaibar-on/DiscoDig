@@ -260,8 +260,8 @@ async function openDD() {
 
 function displayTimeGraph() {
     let timeData = {
-        x: [...datedMessages.keys()],
-        y: [...datedMessages.values()],
+        x: [...datedMessages.keys()].reverse(),
+        y: [...datedMessages.values()].reverse(),
         type: 'scatter'
     };
 
