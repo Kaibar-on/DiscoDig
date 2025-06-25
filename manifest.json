@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Sniffcord",
-  "description": "Sniff your data out with the Sniffcord data collector!",
+  "name": "DiscoDig",
+  "description": "Dig your Discord data out with the DiscoDig data collector!",
   "version": "1.0",
   "icons": {
     "128": "imgs/logo.jpg"
@@ -13,6 +13,7 @@
         "libs/plotly.js",  "libs/wordcloud2.js", "content.js"
       ],
       "matches": [
+        "https://*.discord.com/*",
         "https://*.discord.com/channels/@me/*"
       ],
       "run_at": "document_idle"
@@ -20,7 +21,7 @@
   ],
   "web_accessible_resources": [
   {
-    "resources": ["libs/plotly.js", "libs/wordcloud2.js"],
+    "resources": ["libs/plotly.js", "libs/wordcloud2.js", "imgs/bulldozer.gif", "imgs/shovel.png"],
     "matches": ["<all_urls>"]
   }]
   

@@ -1,7 +1,8 @@
 console.log("DiscoDig running...")
 
+// initialize variables
 const stopwords = new Set([
-    "got", "after", "going", "theres", "ill", "yes", "thats", "i", "im", "i'm", "r", "ur", "u", "me", "my", "myself", "we", "our", "ours", "ourselves", "you", "your",
+    "get", "got", "after", "going", "theres", "ill", "yes", "thats", "i", "im", "i'm", "r", "ur", "u", "me", "my", "myself", "we", "our", "ours", "ourselves", "you", "your",
     "yours", "yourself", "yourselves", "he", "him", "his", "himself", "she",
     "her", "hers", "herself", "it", "its", "itself", "they", "them", "their",
     "theirs", "themselves", "what", "which", "who", "whom", "this", "that",
@@ -15,6 +16,22 @@ const stopwords = new Set([
     "own", "same", "so", "than", "too", "very", "can", "will", "just"
 ]);
 
+let mappedMessages = new Map();
+let datedMessages = new Map();
+let timedMessages = new Map([
+    [0, 0], [1, 0], [2, 0], [3, 0], [4, 0],
+    [5, 0], [6, 0], [7, 0], [8, 0], [9, 0],
+    [10, 0], [11, 0], [12, 0], [13, 0], [14, 0],
+    [15, 0], [16, 0], [17, 0], [18, 0], [19, 0],
+    [20, 0], [21, 0], [22, 0], [23, 0]
+]);
+
+function snowflakeToDate(snowflake) {
+    const discordEpoch = 1420070400000n;
+    const timestamp = (BigInt(snowflake) >> 22n) + discordEpoch;
+    return new Date(Number(timestamp));
+}
+
 
 // get user token (remove before pushing to github)
 const iframe = document.createElement("iframe")
@@ -25,20 +42,23 @@ token = token.slice(1, token.length - 1)
 console.log("token obtained: ", token)
 
 
-
 // create DD button
-const DDbutton = document.createElement("button");
+const DDbutton = document.createElement("img");
+const shovelImg = chrome.runtime.getURL('imgs/shovel.png');
 DDbutton.id = "discoDigButton";
-DDbutton.width = 30;
-DDbutton.height = 30;
-DDbutton.textContent = "DD"
-DDbutton.style.backgroundColor = "#adaeb4"
-DDbutton.style.borderRadius = "6px"
+DDbutton.src = shovelImg
+DDbutton.width = 25;
+DDbutton.height = 25;
 DDbutton.onclick = openDD
+DDbutton.style.cursor = "pointer"
+
 
 // create DD modal
 const discoDig = document.createElement("span");
 discoDig.id = "discoDigModal";
+const bulldozerGif = chrome.runtime.getURL('imgs/bulldozer.gif');
+
+
 discoDig.innerHTML = `
 <style>
 .modebar{
@@ -71,8 +91,6 @@ discoDig.innerHTML = `
     border: 3px solid #ffffff;
     border-radius: 25px;
     overflow-y: scroll;
-    
-
 }
 
 #title {
@@ -85,6 +103,8 @@ discoDig.innerHTML = `
 
 #dataContainer {
   display: flex;
+  justify-content: center;
+    align-items: center;
   flex-wrap: wrap;
   gap: 20px;
 }
@@ -97,16 +117,56 @@ discoDig.innerHTML = `
     border-radius: 10px;
 }
 
+#dayGraph, #timeGraph {
+    width: 45%;
+}
 
 #wordCloudCanvas {
     width: 100%;
     height: 100%;
 }
+
 #selectedChannel {
     color: white;
     text-align: center;
 }
+
+#bulldozer {
+    position: relative;
+    overflow: hidden;
+    height: 100px; /* Adjust to your gif height */
+}
+
+#bulldozer img {
+    position: absolute;
+    animation: moveBuldozer 10s linear infinite;
+    height: 100%;
+}
+
+@keyframes moveBuldozer {
+    0% {
+        left: -200px;
+        transform: scaleX(-1);
+    }
+
+    50% {
+        left: 100%;
+        transform: scaleX(-1);
+    }
+    51% {
+        transform: scaleX(1);
+    }
+
+    99% {
+        transform: scaleX(1);
+    }
+    100% {
+        left: -200px;
+        transform: scaleX(-1);
+    }
+}
 </style>
+
 
 <div id="DDContainer">
   <div id="DDDiv">
@@ -116,17 +176,27 @@ discoDig.innerHTML = `
 
     <div id="dataContainer">
         <div id="userCounts"></div>
+
         <div id="userWordCounts">
             <select id="userSelect" class="clickable"></select>
             <ol id="userTopWords"></ol>
         </div>
+
         <div id="wordCloud">
             <canvas id="wordCloudCanvas">
             </canvas>
         </div>
-        <br>
+        
+        <div id="dayGraph">
+        </div>
+
         <div id="timeGraph">
         </div>
+    </div>
+
+    <br>
+    <div id="bulldozer">
+        <img src="${bulldozerGif}" />
     </div>
 
   </div>
@@ -134,32 +204,31 @@ discoDig.innerHTML = `
     ;
 
 
-
 discoDig.style.display = "none"
 document.body.appendChild(discoDig);
 document.getElementById("closeButton").onclick = closeDD
 document.getElementById("userSelect").onchange = fetchCommonWords
+
+// DDModal handles
 const userSelect = document.getElementById("userSelect")
 const userTopWordsDisplay = document.getElementById("userTopWords")
 const selectedChannelDisplay = document.getElementById("selectedChannel")
 const wordCloudCanvas = document.getElementById("wordCloudCanvas")
+const dayGraphDisplay = document.getElementById("dayGraph")
 const timeGraphDisplay = document.getElementById("timeGraph")
 
 
 
-let mappedMessages = new Map();
-let datedMessages = new Map();
-
 
 // event listener for discord toolbar appearing
 const observer = new MutationObserver((mutationsList) => {
-    for (const mutation of mutationsList) {
-        for (const node of mutation.addedNodes) {
-            if (node.querySelector?.(".toolbar__9293f")) { // search for toolbar
-                console.log("new DM opened");
-                spawnButton()
-
-                //   observer.disconnect(); // stop watching after it appears
+    if (window.location.href.includes("@me") && window.location.href.length > 32) { // check if current page is a DM/GC
+        for (const mutation of mutationsList) {
+            for (const node of mutation.addedNodes) {
+                if (node.querySelector?.(".toolbar__9293f")) { // search for toolbar 
+                    console.log("new DM opened");
+                    spawnButton()
+                }
             }
         }
     }
@@ -177,13 +246,6 @@ function spawnButton() {
 
     const toolbar = document.getElementsByClassName("toolbar__9293f")[0];
     toolbar.appendChild(DDbutton);
-}
-
-
-function snowflakeToDate(snowflake) {
-    const discordEpoch = 1420070400000n;
-    const timestamp = (BigInt(snowflake) >> 22n) + discordEpoch;
-    return new Date(Number(timestamp));
 }
 
 
@@ -237,9 +299,13 @@ async function openDD() {
                 [...(mappedMessages.get(msg.author.username) || []), msg.content]
             );
 
-            // map the dates of the msgs
-            let date = snowflakeToDate(msg.id).toLocaleDateString();
+            // map the dates & times of the msgs
+            let timestamp = snowflakeToDate(msg.id)
+            let date = timestamp.toLocaleDateString()
+            let time = timestamp.getHours()
+
             datedMessages.set(date, (datedMessages.get(date) + 1 || 1));
+            timedMessages.set(time, timedMessages.get(time) + 1);
         })
 
         console.log(datedMessages)
@@ -254,21 +320,56 @@ async function openDD() {
     calculateUserCounts()
     fetchWordCloud()
     fetchCommonWords()
-    displayTimeGraph()
+    displayDayTimeGraph()
 }
 
 
-function displayTimeGraph() {
-    let timeData = {
+// display time graph
+function displayDayTimeGraph() {
+    let dayData = {
         x: [...datedMessages.keys()].reverse(),
         y: [...datedMessages.values()].reverse(),
         type: 'scatter'
     };
 
+    let timeData = {
+        x: [
+            "12am", "1am", "2am", "3am", "4am", "5am",
+            "6am", "7am", "8am", "9am", "10am", "11am",
+            "12pm", "1pm", "2pm", "3pm", "4pm", "5pm",
+            "6pm", "7pm", "8pm", "9pm", "10pm", "11pm"
+        ],
+        y: [...timedMessages.values()],
+        type: 'scatter'
+    };
 
-    Plotly.newPlot(timeGraphDisplay, [timeData]);
 
+    Plotly.newPlot(dayGraphDisplay, [dayData],
+        {
+            title: { text: "Number of Messages Per Day" },
+            paper_bgcolor: "rgba(0, 0, 0, 0)",
+            plot_bgcolor: "rgba(0, 0, 0, 0)",
+            font: { color: 'white' },
+            margin: {
+                r: 40,
+                l: 40
+            },
+        });
+
+
+    Plotly.newPlot(timeGraphDisplay, [timeData],
+        {
+            title: { text: "Total Number of Messages Per Time of Day" },
+            paper_bgcolor: "rgba(0, 0, 0, 0)",
+            plot_bgcolor: "rgba(0, 0, 0, 0)",
+            font: { color: 'white' },
+            margin: {
+                r: 40,
+                l: 40
+            },
+        });
 }
+
 
 function fetchWordCloud() {
     // get a list of ALL words 
@@ -280,7 +381,6 @@ function fetchWordCloud() {
         allWords = allWords.concat(user.join(" ").replace(/[!"’#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g, '').toLowerCase().split(" ").filter(word => word && !stopwords.has(word)));
     })
 
-    console.log(allWords)
 
 
     // map them all
@@ -296,7 +396,6 @@ function fetchWordCloud() {
         wordCloudList.push([word, freq])
     })
 
-    console.log(wordCloudCanvas.offsetWidth)
     wordCloudCanvas.width = wordCloudCanvas.offsetWidth
     wordCloudCanvas.height = wordCloudCanvas.offsetHeight
 
