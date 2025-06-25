@@ -2,7 +2,9 @@ console.log("DiscoDig running...")
 
 // initialize variables
 const stopwords = new Set([
-    "get", "got", "after", "going", "theres", "ill", "yes", "thats", "i", "im", "i'm", "r", "ur", "u", "me", "my", "myself", "we", "our", "ours", "ourselves", "you", "your",
+    "also", "get", "got", "after", "going", "theres", "ill", "yes", "thats", "i", 
+    "im", "i'm", "r", "ur", "u", "me", "my", "myself", "we", "our", "ours", 
+    "ourselves", "you", "your",
     "yours", "yourself", "yourselves", "he", "him", "his", "himself", "she",
     "her", "hers", "herself", "it", "its", "itself", "they", "them", "their",
     "theirs", "themselves", "what", "which", "who", "whom", "this", "that",
@@ -140,6 +142,7 @@ discoDig.innerHTML = `
     position: relative;
     overflow: hidden;
     height: 100px; /* Adjust to your gif height */
+    width: 100%;
 }
 
 #bulldozer img {
@@ -208,6 +211,10 @@ discoDig.innerHTML = `
         </div>
 
         <div id="timeGraph">
+        </div>
+
+        <div id="bulldozer">
+            <img src="${bulldozerGif}" />
         </div>
     </div>
 
