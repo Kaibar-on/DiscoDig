@@ -131,6 +131,7 @@ discoDig.innerHTML = `
 #wordCloudCanvas {
     width: 100%;
     height: 100%;
+    border-radius: 10px;
 }
 
 #selectedChannel {
@@ -149,6 +150,25 @@ discoDig.innerHTML = `
     position: absolute;
     animation: moveBuldozer 10s linear infinite;
     height: 100%;
+}
+
+
+#userTopWords {
+    text-align: center;
+    color: white;
+    font-size: 30px;
+
+}
+
+#userSelect   {
+    width: 200px;
+    margin: 0 auto;
+    display: block;
+     background-color:rgb(60, 194, 132);
+      color: white;
+      padding: 10px;
+      font-size: 16px;
+      border: none;
 }
 
 @keyframes moveBuldozer {
@@ -198,15 +218,16 @@ discoDig.innerHTML = `
         <div id="userCounts"></div>
 
         <div id="userWordCounts">
-            <select id="userSelect"></select>
+            <select id="userSelect" class="clickable"></select>
+            <br>
             <ol id="userTopWords"></ol>
         </div>
 
         <div id="wordCloud">
-            <canvas id="wordCloudCanvas" width="400" height="400">
+            <canvas id="wordCloudCanvas">
             </canvas>
         </div>
-        
+
         <div id="dayGraph">
         </div>
 
@@ -219,7 +240,7 @@ discoDig.innerHTML = `
     </div>
 
     <br>
-    
+
 
   </div>
 </div>`
@@ -482,7 +503,7 @@ function fetchWordCloud() {
 
     const maxFreq = Math.max(...wordCloudList.map(([_, freq]) => freq));
     const power = 0.4;
-    
+
     WordCloud(wordCloudCanvas, {
         list: wordCloudList,
         gridSize: 2,
