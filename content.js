@@ -2,7 +2,7 @@ console.log("DiscoDig running...")
 
 // initialize variables
 const stopwords = new Set([
-    "also", "get", "got", "after", "going", "theres", "ill", "yes", "thats", "i",
+    "bc", "yeah", "dont", "think", "also", "get", "got", "after", "going", "theres", "ill", "yes", "thats", "i",
     "im", "i'm", "r", "ur", "u", "me", "my", "myself", "we", "our", "ours",
     "ourselves", "you", "your",
     "yours", "yourself", "yourselves", "he", "him", "his", "himself", "she",
