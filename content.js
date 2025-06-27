@@ -204,6 +204,19 @@ discoDig.innerHTML = `
         transform: scaleX(-1);
     }
 }
+
+#loadingContainer {
+    height: 24px;
+    width: 80%;
+    border: 1px grey solid;
+    background-color: rgba(0, 0, 0, 0);
+}
+
+#loadingBar {
+    height: 24px;
+    width: 0%;
+    background-color: red;
+}
 </style>
 
 
@@ -215,14 +228,19 @@ discoDig.innerHTML = `
 
     <div id="splashScreen">
         <input type="number" id="nInput"> how many msgs? </input>
+        <br>
         <button id="digBtn"> dig! </button>
+
     </div>
 
     <div id="loadingScreen">
         <div id="bulldozer">
             <img src="${bulldozerGif}" />
         </div>
-            <p id="progress"></p>
+        <p id="progress"></p>
+        <div id="loadingContainer">
+            <div id="loadingBar"></div>
+        </div>
     </div>
 
     <div id="dataScreen">
@@ -270,6 +288,8 @@ const splashScreen = document.getElementById("splashScreen")
 const nInput = document.getElementById("nInput")
 const loadingScreen = document.getElementById("loadingScreen")
 const progressStatus = document.getElementById("progress")
+const loadingContainer = document.getElementById("loadingContainer")
+const loadingBar = document.getElementById("loadingBar")
 const dataScreen = document.getElementById("dataScreen")
 const userSelect = document.getElementById("userSelect")
 const userTopWordsDisplay = document.getElementById("userTopWords")
@@ -386,12 +406,11 @@ async function dig() {
             timedMessages.set(time, timedMessages.get(time) + 1);
         })
 
-        console.log(datedMessages)
 
         lastID = msgs[msgs.length - 1].id
 
-        console.log((i + 1) * 100 + " loaded")
         progressStatus.innerHTML = `${(i + 1) * 100} / ${n} messages loaded`
+        loadingBar.style.width = `${((i + 1) * 100 / n) * 100}%`
     }
 
     console.log(mappedMessages)
@@ -539,8 +558,15 @@ function fetchWordCloud() {
 function calculateUserCounts() {
     // calculate user counts + populate userSelect
     let userCounts = []
+    let omitFromPie = []
+    
     mappedMessages.forEach((msgs, user) => {
-        userCounts.push(msgs.length)
+        if (msgs.length / n < 0.001) {
+            omitFromPie.push(user)
+        } else {
+            userCounts.push(msgs.length)
+        }
+
         userSelect.innerHTML += ` <option value="${user}">${user}</option>`
     });
 
@@ -549,7 +575,7 @@ function calculateUserCounts() {
     var data = [{
         type: "pie",
         values: userCounts,
-        labels: [...mappedMessages.keys()], // .keys() returns an iterable - ... spreads it
+        labels: [...mappedMessages.keys()].filter((user) => !omitFromPie.includes(user)), // .keys() returns an iterable - ... spreads it
         textinfo: "label+percent",
         insidetextorientation: "radial",
         automargin: true
@@ -565,7 +591,7 @@ function calculateUserCounts() {
     }
 
     const userCountDisplay = document.getElementById('userCounts');
-    Plotly.newPlot(userCountDisplay, data, layout, {responsive: true})
+    Plotly.newPlot(userCountDisplay, data, layout, { responsive: true })
 }
 
 
