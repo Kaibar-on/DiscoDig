@@ -379,40 +379,64 @@ async function dig() {
 
         link = `https://discord.com/api/v9/channels/${chatID}/messages?${(i != 0) && `before=${lastID}`}&limit=100`
 
-        let response = await fetch(link, {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-                "authorization": token
+        try {
+            const response = await fetch(link, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                    "authorization": token
+                }
+            });
+
+
+            if (!response.ok) {
+                error = await response.json();
+
+                if (response.status == 429) {
+                    console.log("yikes getting rate limited")
+                    console.log(error)
+                    console.log(error.retry_after)
+                }
+                else {
+                    console.log("some non-429 api error")
+                    console.log(error)
+                }
+
+                throw new Error("beep boop error");
             }
-        });
+
+            msgs = await response.json();
+
+            msgs.forEach((msg) => {
+                // map the senders of the msgs
+                mappedMessages.set(
+                    msg.author.username,
+                    [...(mappedMessages.get(msg.author.username) || []), msg.content]
+                );
+
+                // map the dates & times of the msgs
+                let timestamp = snowflakeToDate(msg.id)
+                let date = timestamp.toLocaleDateString()
+                let time = timestamp.getHours()
+
+                datedMessages.set(date, (datedMessages.get(date) + 1 || 1));
+                timedMessages.set(time, timedMessages.get(time) + 1);
+            })
 
 
-        msgs = await response.json()
+            lastID = msgs[msgs.length - 1].id
 
-        msgs.forEach((msg) => {
-            // map the senders of the msgs
-            mappedMessages.set(
-                msg.author.username,
-                [...(mappedMessages.get(msg.author.username) || []), msg.content]
-            );
+            progressStatus.innerHTML = `${(i + 1) * 100} / ${n} messages loaded`
+            loadingBar.style.width = `${((i + 1) * 100 / n) * 100}%`
 
-            // map the dates & times of the msgs
-            let timestamp = snowflakeToDate(msg.id)
-            let date = timestamp.toLocaleDateString()
-            let time = timestamp.getHours()
-
-            datedMessages.set(date, (datedMessages.get(date) + 1 || 1));
-            timedMessages.set(time, timedMessages.get(time) + 1);
-        })
+        } catch (error) {
+            console.error(error);
+        }
 
 
-        lastID = msgs[msgs.length - 1].id
-
-        progressStatus.innerHTML = `${(i + 1) * 100} / ${n} messages loaded`
-        loadingBar.style.width = `${((i + 1) * 100 / n) * 100}%`
     }
 
+    
     console.log(mappedMessages)
     loadingScreen.style.display = "none"
     dataScreen.style.display = "flex"
@@ -559,7 +583,7 @@ function calculateUserCounts() {
     // calculate user counts + populate userSelect
     let userCounts = []
     let omitFromPie = []
-    
+
     mappedMessages.forEach((msgs, user) => {
         if (msgs.length / n < 0.001) {
             omitFromPie.push(user)
