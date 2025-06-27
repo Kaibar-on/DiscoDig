@@ -90,7 +90,7 @@ discoDig.innerHTML = `
     height: 70vh;
     position: absolute;
     z-index: 1000;
-    padding: 20px;
+    padding: 15px;
     border: 3px solid #ffffff;
     border-radius: 25px;
     overflow-y: scroll;
@@ -117,11 +117,23 @@ discoDig.innerHTML = `
 }
 
 #userCounts, #userWordCounts, #wordCloud {
-    margin: 10px;
+    margin: 5px;
     background-color: rgb(74, 61, 214);
-    width: 30%;
     height: 400px;
     border-radius: 10px;
+    overflow: hidden;
+}
+
+#userCounts {
+    width: 35%;
+}
+
+#userWordCounts {
+    width: 22.5%;
+}
+
+#wordCloud {
+    width: 35%;
 }
 
 #dayGraph, #timeGraph {
@@ -156,8 +168,7 @@ discoDig.innerHTML = `
 #userTopWords {
     text-align: center;
     color: white;
-    font-size: 30px;
-
+    font-size: 27px;
 }
 
 #userSelect   {
@@ -540,13 +551,11 @@ function calculateUserCounts() {
         values: userCounts,
         labels: [...mappedMessages.keys()], // .keys() returns an iterable - ... spreads it
         textinfo: "label+percent",
-        textposition: "outside",
+        insidetextorientation: "radial",
         automargin: true
     }]
 
     var layout = {
-        height: 400,
-        width: 400,
         paper_bgcolor: "rgba(0, 0, 0, 0)",
         margin: { "t": 0, "b": 0, "l": 0, "r": 0 },
         showlegend: false,
@@ -556,7 +565,7 @@ function calculateUserCounts() {
     }
 
     const userCountDisplay = document.getElementById('userCounts');
-    Plotly.newPlot(userCountDisplay, data, layout)
+    Plotly.newPlot(userCountDisplay, data, layout, {responsive: true})
 }
 
 
