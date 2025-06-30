@@ -48,7 +48,7 @@ token = token.slice(1, token.length - 1)
 console.log("token obtained: ", token)
 
 
-// create DD button
+// create shovel button
 const DDbutton = document.createElement("img");
 const shovelImg = chrome.runtime.getURL('imgs/shovel.png');
 DDbutton.id = "discoDigButton";
@@ -228,7 +228,6 @@ discoDig.innerHTML = `
 
 <div id="DDContainer">
   <div id="DDDiv">
-    <button id="closeButton" class="clickable">X</button>
     <h2 id="title">DiscoDig</h2>
     <h3 id="selectedChannel"></h3>
 
@@ -236,7 +235,6 @@ discoDig.innerHTML = `
         <input type="number" id="nInput"> how many msgs? </input>
         <br>
         <button id="digBtn"> dig! </button>
-
     </div>
 
     <div id="loadingScreen">
@@ -286,7 +284,6 @@ discoDig.innerHTML = `
 
 discoDig.style.display = "none"
 document.body.appendChild(discoDig);
-document.getElementById("closeButton").onclick = closeDD
 document.getElementById("digBtn").onclick = dig
 document.getElementById("userSelect").onchange = fetchCommonWords
 
@@ -337,9 +334,15 @@ function spawnButton() {
 }
 
 
-// open modal
+// on shovel press
 async function openDD() {
     console.log("DD opened!");
+
+    if (discoDig.style.display == "block") {
+        discoDig.style.display = "none"
+        return
+    }
+
     discoDig.style.display = "block";
 
     // if still on same DM, do nothing
@@ -364,8 +367,6 @@ async function openDD() {
 
     channel = await response.json()
     selectedChannelDisplay.innerHTML = channel.name || `DMs w/ ${channel.recipients[0].username}`
-
-
 }
 
 
