@@ -2,10 +2,10 @@ console.log("DiscoDig running...")
 
 // initialize variables
 const stopwords = new Set([
-    "bc", "yeah", "dont", "think", "also", "get", "got", "after", "going", "theres", "ill", "yes", "thats", "i",
+    "abt", "bc", "yeah", "dont", "think", "also", "get", "got", 
+    "after", "going", "theres", "ill", "yes", "thats", "i",
     "im", "i'm", "r", "ur", "u", "me", "my", "myself", "we", "our", "ours",
-    "ourselves", "you", "your",
-    "yours", "yourself", "yourselves", "he", "him", "his", "himself", "she",
+    "ourselves", "you", "your", "yours", "yourself", "yourselves", "he", "him",
     "her", "hers", "herself", "it", "its", "itself", "they", "them", "their",
     "theirs", "themselves", "what", "which", "who", "whom", "this", "that",
     "these", "those", "am", "is", "are", "was", "were", "be", "been", "being",
@@ -15,7 +15,8 @@ const stopwords = new Set([
     "in", "out", "on", "off", "then", "here", "there", "when", "where",
     "why", "how", "all", "any", "both", "each", "should", "now",
     "few", "more", "most", "other", "some", "such", "no", "not", "only",
-    "own", "same", "so", "than", "too", "very", "can", "will", "just"
+    "own", "same", "so", "than", "too", "very", "can", "will", "just",
+    "his", "himself", "she",
 ]);
 
 let mappedMessages = new Map();
@@ -29,6 +30,8 @@ let timedMessages = new Map([
 ]);
 let chatID;
 
+
+// get date of msgs
 function snowflakeToDate(snowflake) {
     const discordEpoch = 1420070400000n;
     const timestamp = (BigInt(snowflake) >> 22n) + discordEpoch;
@@ -60,7 +63,6 @@ DDbutton.style.cursor = "pointer"
 const discoDig = document.createElement("span");
 discoDig.id = "discoDigModal";
 const bulldozerGif = chrome.runtime.getURL('imgs/bulldozer.gif');
-
 
 discoDig.innerHTML = `
 <style>
@@ -217,6 +219,10 @@ discoDig.innerHTML = `
     width: 0%;
     background-color: red;
 }
+
+#credits {
+    color: white;
+}
 </style>
 
 
@@ -266,6 +272,8 @@ discoDig.innerHTML = `
         <div id="bulldozer">
             <img src="${bulldozerGif}" />
         </div>
+
+        <p id="credits">made by <a href="https://vidsterbroyo.com/">vidu widyalankara</a> & <a href="https://www.linkedin.com/in/kai-bar-on/">kai bar-on</a></p>
     </div>
 
     <br>
@@ -297,7 +305,6 @@ const selectedChannelDisplay = document.getElementById("selectedChannel")
 const wordCloudCanvas = document.getElementById("wordCloudCanvas")
 const dayGraphDisplay = document.getElementById("dayGraph")
 const timeGraphDisplay = document.getElementById("timeGraph")
-
 
 
 
@@ -375,6 +382,9 @@ async function dig() {
 
     n = nInput.value;
 
+    let timestamp = new Date()
+    console.log("timestamp", timestamp)
+
     for (let i = 0; i < Math.ceil(n / 100); i++) {
 
         link = `https://discord.com/api/v9/channels/${chatID}/messages?${(i != 0) && `before=${lastID}`}&limit=100`
@@ -406,6 +416,7 @@ async function dig() {
             }
 
             msgs = await response.json();
+            
 
             msgs.forEach((msg) => {
                 // map the senders of the msgs
@@ -415,7 +426,25 @@ async function dig() {
                 );
 
                 // map the dates & times of the msgs
-                let timestamp = snowflakeToDate(msg.id)
+                let newTimestamp = snowflakeToDate(msg.id)
+                console.log("latest msg", newTimestamp)
+                
+                // check if there is a missing date
+                if (((timestamp - newTimestamp) / (1000 * 3600 * 24)) > 1) {
+                    console.log("gap to be filled")
+
+                    // if so, fill in the dates
+                    let addedDate = new Date(timestamp);
+                    addedDate.setDate(addedDate.getDate() - 1);
+  
+                    while (addedDate > newTimestamp) {
+                        datedMessages.set(addedDate.toLocaleDateString(), 0)
+                        addedDate.setDate(addedDate.getDate() - 1);
+                    }
+                }
+                console.log(datedMessages)
+
+                timestamp = newTimestamp
                 let date = timestamp.toLocaleDateString()
                 let time = timestamp.getHours()
 
@@ -423,6 +452,7 @@ async function dig() {
                 timedMessages.set(time, timedMessages.get(time) + 1);
             })
 
+            console.log(datedMessages)
 
             lastID = msgs[msgs.length - 1].id
 
@@ -436,7 +466,7 @@ async function dig() {
 
     }
 
-    
+
     console.log(mappedMessages)
     loadingScreen.style.display = "none"
     dataScreen.style.display = "flex"
