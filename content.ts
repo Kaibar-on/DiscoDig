@@ -1,12 +1,16 @@
 // these lines only import the TYPES for these libraries
 // this way, the .js file won't re-import the libraries 
 // which will break the code since it's running in chrome, not node
-Plotly: typeof import('plotly.js');
-WordCloud: typeof import('wordcloud');
+
+import type PlotlyType from 'plotly.js';
+declare const Plotly: typeof PlotlyType;
+
+import type WordCloudType from 'wordcloud';
+declare const WordCloud: typeof WordCloudType;
  
 
 
-console.log("DiscoDig running...")
+console.log("DiscoDigger running...")
 
 
 // initialize variables
