@@ -1,8 +1,9 @@
-console.log("DiscoDig running...")
-
-// initialize variables
+"use strict";
+Plotly: typeof import('plotly.js');
+WordCloud: typeof import('wordcloud');
+console.log("DiscoDig running...");
 const stopwords = new Set([
-    "abt", "bc", "yeah", "dont", "think", "also", "get", "got", 
+    "abt", "bc", "yeah", "dont", "think", "also", "get", "got",
     "after", "going", "theres", "ill", "yes", "thats", "i",
     "im", "i'm", "r", "ur", "u", "me", "my", "myself", "we", "our", "ours",
     "ourselves", "you", "your", "yours", "yourself", "yourselves", "he", "him",
@@ -18,7 +19,6 @@ const stopwords = new Set([
     "own", "same", "so", "than", "too", "very", "can", "will", "just",
     "his", "himself", "she",
 ]);
-
 let mappedMessages = new Map();
 let datedMessages = new Map();
 let timedMessages = new Map([
@@ -29,45 +29,44 @@ let timedMessages = new Map([
     [20, 0], [21, 0], [22, 0], [23, 0]
 ]);
 let chatID;
-
-
-// get date of msgs
 function snowflakeToDate(snowflake) {
     const discordEpoch = 1420070400000n;
     const timestamp = (BigInt(snowflake) >> 22n) + discordEpoch;
     return new Date(Number(timestamp));
 }
-
-
-// get user token (remove before pushing to github)
-const iframe = document.createElement("iframe")
-iframe.style.display = "none"
+const iframe = document.createElement("iframe");
+iframe.style.display = "none";
 const storage = document.body.appendChild(iframe).contentWindow.localStorage;
-token = storage.token
-token = token.slice(1, token.length - 1)
-console.log("token obtained: ", token)
-
-
-// create shovel button
+let token = storage.token;
+token = token.slice(1, token.length - 1);
+console.log("token obtained: ", token);
 const DDbutton = document.createElement("img");
 const shovelImg = chrome.runtime.getURL('imgs/shovel.png');
+const activeShovelImg = chrome.runtime.getURL('imgs/shovelActive.png');
 DDbutton.id = "discoDigButton";
-DDbutton.src = shovelImg
+DDbutton.src = shovelImg;
 DDbutton.width = 25;
 DDbutton.height = 25;
-DDbutton.onclick = openDD
-DDbutton.style.cursor = "pointer"
-
-
-// create DD modal
+DDbutton.onclick = openDD;
+DDbutton.style.cursor = "pointer";
 const discoDig = document.createElement("span");
 discoDig.id = "discoDigModal";
 const bulldozerGif = chrome.runtime.getURL('imgs/bulldozer.gif');
-
 discoDig.innerHTML = `
 <style>
 .modebar{
-      display: none !important;
+    display: none !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #F1FFE7;
+  border: 4px solid transparent;
+  border-radius: 8px;
+  background-clip: padding-box;  
+}
+
+::-webkit-scrollbar {
+  width: 16px;
 }
 
 #closeButton {
@@ -94,7 +93,7 @@ discoDig.innerHTML = `
     z-index: 1000;
     padding: 15px;
     border: 3px solid #ffffff;
-    border-radius: 25px;
+    border-radius: 15px;
     overflow-y: scroll;
 }
 
@@ -278,85 +277,60 @@ discoDig.innerHTML = `
 
 
   </div>
-</div>`
-    ;
-
-
-discoDig.style.display = "none"
+</div>`;
+discoDig.style.display = "none";
 document.body.appendChild(discoDig);
-document.getElementById("digBtn").onclick = dig
-document.getElementById("userSelect").onchange = fetchCommonWords
-
-
-// DDModal handles
-const splashScreen = document.getElementById("splashScreen")
-const nInput = document.getElementById("nInput")
-const loadingScreen = document.getElementById("loadingScreen")
-const progressStatus = document.getElementById("progress")
-const loadingContainer = document.getElementById("loadingContainer")
-const loadingBar = document.getElementById("loadingBar")
-const dataScreen = document.getElementById("dataScreen")
-const userSelect = document.getElementById("userSelect")
-const userTopWordsDisplay = document.getElementById("userTopWords")
-const selectedChannelDisplay = document.getElementById("selectedChannel")
-const wordCloudCanvas = document.getElementById("wordCloudCanvas")
-const dayGraphDisplay = document.getElementById("dayGraph")
-const timeGraphDisplay = document.getElementById("timeGraph")
-
-
-
-// event listener for discord toolbar appearing
+document.getElementById("digBtn").onclick = dig;
+const splashScreen = document.getElementById("splashScreen");
+const nInput = document.getElementById("nInput");
+const loadingScreen = document.getElementById("loadingScreen");
+const progressStatus = document.getElementById("progress");
+const loadingContainer = document.getElementById("loadingContainer");
+const loadingBar = document.getElementById("loadingBar");
+const dataScreen = document.getElementById("dataScreen");
+const userSelect = document.getElementById("userSelect");
+userSelect.onchange = fetchCommonWords;
+const userTopWordsDisplay = document.getElementById("userTopWords");
+const selectedChannelDisplay = document.getElementById("selectedChannel");
+const wordCloudCanvas = document.getElementById("wordCloudCanvas");
+const dayGraphDisplay = document.getElementById("dayGraph");
+const timeGraphDisplay = document.getElementById("timeGraph");
 const observer = new MutationObserver((mutationsList) => {
-    if (window.location.href.includes("@me") && window.location.href.length > 32) { // check if current page is a DM/GC
+    if (window.location.href.includes("@me") && window.location.href.length > 32) {
         for (const mutation of mutationsList) {
             for (const node of mutation.addedNodes) {
-                if (node.querySelector?.(".toolbar__9293f")) { // search for toolbar 
+                if (node.querySelector?.(".toolbar__9293f")) {
                     console.log("new DM opened");
-                    spawnButton()
+                    spawnButton();
                 }
             }
         }
     }
 });
-
 observer.observe(document.body, {
     childList: true,
     subtree: true,
 });
-
-
-// spawn button in toolbar
 function spawnButton() {
-    console.log("button spawning...")
-
+    console.log("button spawning...");
     const toolbar = document.getElementsByClassName("toolbar__9293f")[0];
     toolbar.appendChild(DDbutton);
 }
-
-
-// on shovel press
 async function openDD() {
     console.log("DD opened!");
-
     if (discoDig.style.display == "block") {
-        discoDig.style.display = "none"
-        return
+        discoDig.style.display = "none";
+        DDbutton.src = shovelImg;
+        return;
     }
-
     discoDig.style.display = "block";
-
-    // if still on same DM, do nothing
-    if (window.location.href.slice(33) == chatID) {
-        return
+    DDbutton.src = activeShovelImg;
+    if (BigInt(window.location.href.slice(33)) == chatID) {
+        return;
     }
-
-    chatID = window.location.href.slice(33);
-
+    chatID = BigInt(window.location.href.slice(33));
     dataScreen.style.display = "none";
-    splashScreen.style.display = "block"
-
-
-    // fetch + display name of channel
+    splashScreen.style.display = "block";
     let response = await fetch(`https://discord.com/api/v9/channels/${chatID}`, {
         method: "GET",
         headers: {
@@ -364,32 +338,25 @@ async function openDD() {
             "authorization": token
         }
     });
-
-    channel = await response.json()
-    selectedChannelDisplay.innerHTML = channel.name || `DMs w/ ${channel.recipients[0].username}`
+    let channel = await response.json();
+    selectedChannelDisplay.innerHTML = channel.name || `DMs w/ ${channel.recipients[0].username}`;
 }
-
-
-// main digging function
+let n;
 async function dig() {
-    splashScreen.style.display = "none"
-    loadingScreen.style.display = "block"
-
-    mappedMessages.clear()
-    datedMessages.clear()
-    userSelect.innerHTML = ""
-    userTopWordsDisplay.innerHTML = ""
+    splashScreen.style.display = "none";
+    loadingScreen.style.display = "block";
+    mappedMessages.clear();
+    datedMessages.clear();
+    userSelect.innerHTML = "";
+    userTopWordsDisplay.innerHTML = "";
     let link;
-
-    n = nInput.value;
-
-    let timestamp = new Date()
-    console.log("timestamp", timestamp)
-
+    let lastID = 69;
+    let time = 420;
+    n = parseInt(nInput.value);
+    let timestamp = new Date();
+    console.log("timestamp", timestamp);
     for (let i = 0; i < Math.ceil(n / 100); i++) {
-
-        link = `https://discord.com/api/v9/channels/${chatID}/messages?${(i != 0) && `before=${lastID}`}&limit=100`
-
+        link = `https://discord.com/api/v9/channels/${chatID}/messages?${(i != 0) && `before=${lastID}`}&limit=100`;
         try {
             const response = await fetch(link, {
                 method: "GET",
@@ -398,90 +365,57 @@ async function dig() {
                     "authorization": token
                 }
             });
-
-
             if (!response.ok) {
-                error = await response.json();
-
+                let error = await response.json();
                 if (response.status == 429) {
-                    console.log("yikes getting rate limited")
-                    console.log(error)
-                    console.log(error.retry_after)
+                    console.log("yikes getting rate limited");
+                    console.log(error);
+                    console.log(error.retry_after);
                 }
                 else {
-                    console.log("some non-429 api error")
-                    console.log(error)
+                    console.log("some non-429 api error");
+                    console.log(error);
                 }
-
                 throw new Error("beep boop error");
             }
-
-            msgs = await response.json();
-            
-
+            let msgs = await response.json();
             msgs.forEach((msg) => {
-                // map the senders of the msgs
-                mappedMessages.set(
-                    msg.author.username,
-                    [...(mappedMessages.get(msg.author.username) || []), msg.content]
-                );
-
-                // map the dates & times of the msgs
-                let newTimestamp = snowflakeToDate(msg.id)
-                console.log("latest msg", newTimestamp)
-                
-                // check if there is a missing date
-                if (((timestamp - newTimestamp) / (1000 * 3600 * 24)) > 1) {
-                    console.log("gap to be filled")
-
-                    // if so, fill in the dates
+                mappedMessages.set(msg.author.username, [...(mappedMessages.get(msg.author.username) || []), msg.content]);
+                let newTimestamp = snowflakeToDate(msg.id);
+                console.log("latest msg", newTimestamp);
+                if (((+timestamp - +newTimestamp) / (1000 * 3600 * 24)) > 1) {
+                    console.log("gap to be filled");
                     let addedDate = new Date(timestamp);
                     addedDate.setDate(addedDate.getDate() - 1);
-  
                     while (addedDate > newTimestamp) {
-                        datedMessages.set(addedDate.toLocaleDateString(), 0)
+                        datedMessages.set(addedDate.toLocaleDateString(), 0);
                         addedDate.setDate(addedDate.getDate() - 1);
                     }
                 }
-                console.log(datedMessages)
-
-                timestamp = newTimestamp
-                let date = timestamp.toLocaleDateString()
-                let time = timestamp.getHours()
-
-                datedMessages.set(date, (datedMessages.get(date) + 1 || 1));
-                timedMessages.set(time, timedMessages.get(time) + 1);
-            })
-
-            console.log(datedMessages)
-
-            lastID = msgs[msgs.length - 1].id
-
-            progressStatus.innerHTML = `${(i + 1) * 100} / ${n} messages loaded`
-            loadingBar.style.width = `${((i + 1) * 100 / n) * 100}%`
-
-        } catch (error) {
+                console.log(datedMessages);
+                timestamp = newTimestamp;
+                let date = timestamp.toLocaleDateString();
+                time = timestamp.getHours();
+                datedMessages.set(date, (datedMessages.get(date) || 0) + 1);
+                timedMessages.set(time, (timedMessages.get(time) || 0) + 1);
+            });
+            console.log(datedMessages);
+            lastID = msgs[msgs.length - 1].id;
+            progressStatus.innerHTML = `${(i + 1) * 100} / ${n} messages loaded`;
+            loadingBar.style.width = `${((i + 1) * 100 / n) * 100}%`;
+        }
+        catch (error) {
             console.error(error);
         }
-
-
     }
-
-
-    console.log(mappedMessages)
-    loadingScreen.style.display = "none"
-    dataScreen.style.display = "flex"
-
-
-    calculateUserCounts()
-    fetchWordCloud()
-    fetchCommonWords()
-    displayDayTimeGraph()
+    console.log(mappedMessages);
+    loadingScreen.style.display = "none";
+    dataScreen.style.display = "flex";
+    calculateUserCounts();
+    fetchWordCloud();
+    fetchCommonWords();
+    displayDayTimeGraph();
 }
-
-
-
-// display time graph
 function displayDayTimeGraph() {
     let dayData = {
         x: [...datedMessages.keys()].reverse(),
@@ -492,7 +426,6 @@ function displayDayTimeGraph() {
             width: 1
         }
     };
-
     let timeData = {
         x: [
             "12am", "1am", "2am", "3am", "4am", "5am",
@@ -507,88 +440,61 @@ function displayDayTimeGraph() {
             width: 1
         }
     };
-
-
-    Plotly.newPlot(dayGraphDisplay, [dayData],
-        {
-            title: { text: "Number of Messages Per Day" },
-            paper_bgcolor: "rgba(0, 0, 0, 0)",
-            plot_bgcolor: "rgba(0, 0, 0, 0)",
-            font: { color: 'white' },
-            margin: {
-                r: 40,
-                l: 40
-            },
-            xaxis: {
-                showgrid: false
-            },
-            yaxis: {
-                showgrid: false,
-                showline: true
-            }
-        });
-
-
-    Plotly.newPlot(timeGraphDisplay, [timeData],
-        {
-            title: { text: "Total Number of Messages Per Time of Day" },
-            paper_bgcolor: "rgba(0, 0, 0, 0)",
-            plot_bgcolor: "rgba(0, 0, 0, 0)",
-            font: { color: 'white' },
-            margin: {
-                r: 40,
-                l: 40
-            },
-            xaxis: {
-                showgrid: false
-            },
-            yaxis: {
-                showgrid: false,
-                showline: true
-            }
-        });
+    Plotly.newPlot(dayGraphDisplay, [dayData], {
+        title: { text: "Number of Messages Per Day" },
+        paper_bgcolor: "rgba(0, 0, 0, 0)",
+        plot_bgcolor: "rgba(0, 0, 0, 0)",
+        font: { color: 'white' },
+        margin: {
+            r: 40,
+            l: 40
+        },
+        xaxis: {
+            showgrid: false
+        },
+        yaxis: {
+            showgrid: false,
+            showline: true
+        }
+    });
+    Plotly.newPlot(timeGraphDisplay, [timeData], {
+        title: { text: "Total Number of Messages Per Time of Day" },
+        paper_bgcolor: "rgba(0, 0, 0, 0)",
+        plot_bgcolor: "rgba(0, 0, 0, 0)",
+        font: { color: 'white' },
+        margin: {
+            r: 40,
+            l: 40
+        },
+        xaxis: {
+            showgrid: false
+        },
+        yaxis: {
+            showgrid: false,
+            showline: true
+        }
+    });
 }
-
-
 function fetchWordCloud() {
-    // get a list of ALL words 
-    // map them
-    // convert it to a list
-    let allWords = []
-
+    let allWords = [];
     mappedMessages.forEach((user) => {
         allWords = allWords.concat(user.join(" ").replace(/[!"’#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g, '').toLowerCase().split(" ").filter(word => word && !stopwords.has(word)));
-    })
-
-
-
-    // map them all
+    });
     let mappedWords = new Map();
     allWords.forEach((word) => {
         mappedWords.set(word, (mappedWords.get(word) + 1 || 1));
-    })
-
-
-
-    console.log(mappedWords)
-
-    let wordCloudList = []
+    });
+    console.log(mappedWords);
+    let wordCloudList = [];
     mappedWords.forEach((freq, word) => {
-        wordCloudList.push([word, freq])
-    })
-
-    console.log(mappedWords)
-    console.log(wordCloudList)
-
-
-
+        wordCloudList.push([word, freq]);
+    });
+    console.log(mappedWords);
+    console.log(wordCloudList);
     wordCloudCanvas.width = wordCloudCanvas.offsetWidth;
     wordCloudCanvas.height = wordCloudCanvas.offsetHeight;
-
-
     const maxFreq = Math.max(...wordCloudList.map(([_, freq]) => freq));
     const power = 0.4;
-
     WordCloud(wordCloudCanvas, {
         list: wordCloudList,
         gridSize: 2,
@@ -603,39 +509,29 @@ function fetchWordCloud() {
             const normalized = Math.pow(freq / maxFreq, power);
             return minFontSize + normalized * (maxFontSize - minFontSize);
         },
-        // shrinkToFit: true,
         hover: (item) => console.log(item)
     });
 }
-
-
-
 function calculateUserCounts() {
-    // calculate user counts + populate userSelect
-    let userCounts = []
-    let omitFromPie = []
-
+    let userCounts = [];
+    let omitFromPie = [];
     mappedMessages.forEach((msgs, user) => {
         if (msgs.length / n < 0.001) {
-            omitFromPie.push(user)
-        } else {
-            userCounts.push(msgs.length)
+            omitFromPie.push(user);
         }
-
-        userSelect.innerHTML += ` <option value="${user}">${user}</option>`
+        else {
+            userCounts.push(msgs.length);
+        }
+        userSelect.innerHTML += ` <option value="${user}">${user}</option>`;
     });
-
-
-    // display user counts
     var data = [{
-        type: "pie",
-        values: userCounts,
-        labels: [...mappedMessages.keys()].filter((user) => !omitFromPie.includes(user)), // .keys() returns an iterable - ... spreads it
-        textinfo: "label+percent",
-        insidetextorientation: "radial",
-        automargin: true
-    }]
-
+            type: "pie",
+            values: userCounts,
+            labels: [...mappedMessages.keys()].filter((user) => !omitFromPie.includes(user)),
+            textinfo: "label+percent",
+            insidetextorientation: "radial",
+            automargin: true
+        }];
     var layout = {
         paper_bgcolor: "rgba(0, 0, 0, 0)",
         margin: { "t": 0, "b": 0, "l": 0, "r": 0 },
@@ -643,60 +539,37 @@ function calculateUserCounts() {
         font: {
             color: 'white'
         }
-    }
-
+    };
     const userCountDisplay = document.getElementById('userCounts');
-    Plotly.newPlot(userCountDisplay, data, layout, { responsive: true })
+    Plotly.newPlot(userCountDisplay, data, layout, { responsive: true });
 }
-
-
 function fetchCommonWords() {
-    userTopWordsDisplay.innerHTML = ""
-
-    // get array of words used by the user
-    let selectedUser = userSelect.value
-    userWords = mappedMessages.get(selectedUser).join(" ").replace(/[!"’#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g, '').toLowerCase().split(" ").filter(word => word && !stopwords.has(word));
-
-    // map them all
+    userTopWordsDisplay.innerHTML = "";
+    let selectedUser = userSelect.value;
+    let userWords = mappedMessages.get(selectedUser).join(" ").replace(/[!"’#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g, '').toLowerCase().split(" ").filter(word => word && !stopwords.has(word));
     let mappedWords = new Map();
     userWords.forEach((word) => {
         mappedWords.set(word, (mappedWords.get(word) + 1 || 1));
-    })
-
-
-    // rank words
-    let topWords = Array(10).fill().map(() => ({ word: "", freq: 0 })); // .fill() fills array with undefined
-
+    });
+    let topWords = [{ word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }];
     mappedWords.forEach((freq, word) => {
-
-        // find where the word fits into the topWords
-        let i = 9
+        let i = 9;
         while (freq > topWords[i].freq) {
             i--;
             if (i < 0) {
-                break
+                break;
             }
         }
-
-        // check if while loop ran,
-        // then insert the word
         if (i < 9) {
-            topWords.splice(i + 1, 0, { word: word, freq: freq })
-            topWords.pop()
+            topWords.splice(i + 1, 0, { word: word, freq: freq });
+            topWords.pop();
         }
-
     });
-
-
-    // display rankings
     topWords.forEach((wordObject, index) => {
-        userTopWordsDisplay.innerHTML += ` <li>${index + 1}. ${wordObject.word} (${wordObject.freq})</li>`
-    })
+        userTopWordsDisplay.innerHTML += ` <li>${index + 1}. ${wordObject.word} (${wordObject.freq})</li>`;
+    });
 }
-
-
-
 function closeDD() {
-    discoDig.style.display = "none"
-    console.log("DD closed")
+    discoDig.style.display = "none";
+    console.log("DD closed");
 }

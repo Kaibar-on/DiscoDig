@@ -10,7 +10,7 @@
   "content_scripts": [
     {
       "js": [
-        "libs/plotly.js",  "libs/wordcloud2.js", "content.js"
+        "libs/plotly.js", "libs/wordcloud2.min.js", "content.js"
       ],
       "matches": [
         "https://*.discord.com/*",
@@ -21,7 +21,7 @@
   ],
   "web_accessible_resources": [
   {
-    "resources": ["libs/plotly.js", "libs/wordcloud2.js", "imgs/bulldozer.gif", "imgs/shovel.png"],
+    "resources": ["libs/plotly.js", "libs/wordcloud2.min.js", "imgs/bulldozer.gif", "imgs/shovel.png", "imgs/shovelActive.png"],
     "matches": ["<all_urls>"]
   }]
   

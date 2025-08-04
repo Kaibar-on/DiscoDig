@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",                     // The JavaScript version it compiles to
+    "module": "ESNext",                     // Module system (good for modern bundlers like Vite/Webpack)
+    "strict": true,                      // Enables all strict type-checking options
+    "noImplicitAny": true,               // Disallow variables with implicit `any` type
+    "moduleResolution": "node",         // How modules get resolved
+    "esModuleInterop": true,            // Allow default imports from CommonJS modules
+    "forceConsistentCasingInFileNames": true, // Avoid case-mismatch issues on import paths
+    "skipLibCheck": true,               // Skip type checking of declaration files for speed
+    "resolveJsonModule": true,          // Allows importing `.json` files
+    "outDir": "app",                 // Where the compiled .js files go
+    "rootDir": ".",                  // Where your TypeScript source files live
+    "removeComments": true          // remove comments
+  },
+  "include": ["content.ts"],
+  "exclude": ["node_modules"]
+}
