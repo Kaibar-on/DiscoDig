@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "blastoff": "esbuild content.ts --bundle --minify --outfile=app/content.js --format=iife --target=es2024 --platform=browser --legal-comments=none"
+    "blastoff": "esbuild content.ts --bundle --minify --sourcemap --outfile=app/content.js --format=iife --target=es2024 --platform=browser --legal-comments=none"
   },
   "repository": {
     "type": "git",

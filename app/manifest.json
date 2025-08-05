@@ -21,7 +21,7 @@
   ],
   "web_accessible_resources": [
   {
-    "resources": ["libs/plotly.js", "libs/wordcloud2.min.js", "imgs/bulldozer.gif", "imgs/shovel.png", "imgs/shovelActive.png"],
+    "resources": ["content.js.map", "libs/plotly.js", "libs/wordcloud2.min.js", "imgs/bulldozer.gif", "imgs/shovel.png", "imgs/shovelActive.png"],
     "matches": ["<all_urls>"]
   }]
   

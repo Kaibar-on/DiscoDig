@@ -9,9 +9,9 @@
     "forceConsistentCasingInFileNames": true, // Avoid case-mismatch issues on import paths
     "skipLibCheck": true,               // Skip type checking of declaration files for speed
     "resolveJsonModule": true,          // Allows importing `.json` files
-    "outDir": "app",                 // Where the compiled .js files go
-    "rootDir": ".",                  // Where your TypeScript source files live
-    "removeComments": true          // remove comments
+    "outDir": "app",                  // Where the compiled .js files go
+    "rootDir": ".",                   // Where your TypeScript source files live
+    "removeComments": true,           // remove comments
   },
   "include": ["content.ts"],
   "exclude": ["node_modules"]

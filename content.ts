@@ -7,10 +7,10 @@ declare const Plotly: typeof PlotlyType;
 
 import type WordCloudType from 'wordcloud';
 declare const WordCloud: typeof WordCloudType;
- 
 
 
-console.log("DiscoDigger running...")
+
+console.log("DiscoDig running...")
 
 
 // initialize variables
@@ -32,16 +32,27 @@ const stopwords = new Set([
     "his", "himself", "she",
 ]);
 
-let mappedMessages: Map<string, string[]> = new Map();
-let datedMessages = new Map();
-let timedMessages: Map<number, number> = new Map([
+// array of messages, array of most used words, avg msg count, 
+
+interface userData {
+    allMessages: string[],
+    mostUsedWords: { word: string, freq: number }[],
+    avgMsgLength: number,
+    numberOfMessages: number
+}
+
+
+let mappedMessages: Map<string, userData> = new Map();  // user: their data
+let datedMessages = new Map();                          // date: number of msgs
+let timedMessages: Map<number, number> = new Map([      // time: number of msgs
     [0, 0], [1, 0], [2, 0], [3, 0], [4, 0],
     [5, 0], [6, 0], [7, 0], [8, 0], [9, 0],
     [10, 0], [11, 0], [12, 0], [13, 0], [14, 0],
     [15, 0], [16, 0], [17, 0], [18, 0], [19, 0],
     [20, 0], [21, 0], [22, 0], [23, 0]
 ]);
-let chatID:BigInt;
+let chatID: BigInt;
+let n: number;
 
 
 // get date of msgs
@@ -396,7 +407,7 @@ async function openDD() {
     selectedChannelDisplay.innerHTML = channel.name || `DMs w/ ${channel.recipients[0].username}`
 }
 
-let n: number;
+
 
 // main digging function
 async function dig() {
@@ -405,13 +416,13 @@ async function dig() {
 
     mappedMessages.clear()
     datedMessages.clear()
+
     userSelect.innerHTML = ""
     userTopWordsDisplay.innerHTML = ""
     let link: string;
 
     let lastID: number = 69;
     let time: number = 420; // just to appease the typescript gods
-
 
 
     n = parseInt(nInput.value);
@@ -459,13 +470,22 @@ async function dig() {
 
 
             msgs.forEach((msg) => {
-                // map the senders of the msgs
-                mappedMessages.set(
-                    msg.author.username,
-                    [...(mappedMessages.get(msg.author.username) || []), msg.content]
-                );
+                
+                // if user hasn't been added yet, initialize them
+                if (!mappedMessages.has(msg.author.username)) {
+                    mappedMessages.set(msg.author.username, {
+                        allMessages: [],
+                        mostUsedWords: [{ word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }],
+                        avgMsgLength: 0,
+                        numberOfMessages: 0
+                    })
+                }
 
+                let userData = mappedMessages.get(msg.author.username)!;
 
+                userData.allMessages.push(msg.content)
+                userData.numberOfMessages += 1;
+                userData.avgMsgLength = userData.avgMsgLength * (1 - 1/userData.numberOfMessages) + msg.content.split(" ").length * (1/userData.numberOfMessages)
 
 
                 // map the dates & times of the msgs to frequency
@@ -496,6 +516,7 @@ async function dig() {
                 timedMessages.set(time, (timedMessages.get(time) || 0) + 1);
             })
 
+            console.log(mappedMessages)
             console.log(datedMessages)
 
             lastID = msgs[msgs.length - 1].id
@@ -597,10 +618,10 @@ function fetchWordCloud() {
     // get a list of ALL words 
     // map them
     // convert it to a list
-    let allWords:string[] = []
+    let allWords: string[] = []
 
-    mappedMessages.forEach((user:string[]) => {
-        allWords = allWords.concat(user.join(" ").replace(/[!"’#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g, '').toLowerCase().split(" ").filter(word => word && !stopwords.has(word)));
+    mappedMessages.forEach((user: userData) => {
+        allWords = allWords.concat(user.allMessages.join(" ").replace(/[!"’#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g, '').toLowerCase().split(" ").filter(word => word && !stopwords.has(word)));
     })
 
 
@@ -659,10 +680,10 @@ function calculateUserCounts() {
     let omitFromPie: string[] = [] // list of users to omit from pie (used when not enough texts sent)
 
     mappedMessages.forEach((msgs, user) => {
-        if (msgs.length / n < 0.001) {
+        if (msgs.allMessages.length / n < 0.001) {
             omitFromPie.push(user)
         } else {
-            userCounts.push(msgs.length)
+            userCounts.push(msgs.allMessages.length)
         }
 
         userSelect.innerHTML += ` <option value="${user}">${user}</option>`
@@ -670,7 +691,7 @@ function calculateUserCounts() {
 
 
     // display user counts
-    var data:Plotly.Data[] = [{
+    var data: Plotly.Data[] = [{
         type: "pie",
         values: userCounts,
         labels: [...mappedMessages.keys()].filter((user) => !omitFromPie.includes(user)), // .keys() returns an iterable - ... spreads it
@@ -697,10 +718,10 @@ function fetchCommonWords() {
     userTopWordsDisplay.innerHTML = ""
 
     // get array of words used by the user
-    let selectedUser = userSelect.value
-    let userWords: string[] = mappedMessages.get(selectedUser)!.join(" ").replace(/[!"’#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g, '').toLowerCase().split(" ").filter(word => word && !stopwords.has(word));
+    let selectedUser: string = userSelect.value
+    let userWords: string[] = mappedMessages.get(selectedUser)!.allMessages.join(" ").replace(/[!"’#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g, '').toLowerCase().split(" ").filter(word => word && !stopwords.has(word));
 
-    // map them all
+    // map them all (word: frequency)
     let mappedWords = new Map();
     userWords.forEach((word) => {
         mappedWords.set(word, (mappedWords.get(word) + 1 || 1));
@@ -737,9 +758,3 @@ function fetchCommonWords() {
     })
 }
 
-
-
-function closeDD() {
-    discoDig.style.display = "none"
-    console.log("DD closed")
-}
