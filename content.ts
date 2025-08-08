@@ -38,7 +38,8 @@ interface userData {
     allMessages: string[],
     mostUsedWords: { word: string, freq: number }[],
     avgMsgLength: number,
-    numberOfMessages: number
+    numberOfMessages: number,
+    avgReplyTime: number[]
 }
 
 
@@ -51,6 +52,8 @@ let timedMessages: Map<number, number> = new Map([      // time: number of msgs
     [15, 0], [16, 0], [17, 0], [18, 0], [19, 0],
     [20, 0], [21, 0], [22, 0], [23, 0]
 ]);
+let gifFrequency: Map<string, number> = new Map();      // gif link: # of times used
+
 let chatID: BigInt;
 let n: number;
 
@@ -163,15 +166,15 @@ discoDig.innerHTML = `
 }
 
 #userCounts {
-    width: 35%;
+    width: 45%;
 }
 
 #userWordCounts {
-    width: 22.5%;
+    width: 50%;
 }
 
 #wordCloud {
-    width: 35%;
+    width: 45%;
 }
 
 #dayGraph, #timeGraph {
@@ -203,7 +206,7 @@ discoDig.innerHTML = `
 }
 
 
-#userTopWords {
+#userTopWords, #userAvgLength, #userAvgReplyTime {
     text-align: center;
     color: white;
     font-size: 27px;
@@ -286,15 +289,17 @@ discoDig.innerHTML = `
     <div id="dataScreen">
         <div id="userCounts"></div>
 
+        <div id="wordCloud">
+            <canvas id="wordCloudCanvas">
+            </canvas>
+        </div>
+
         <div id="userWordCounts">
             <select id="userSelect" class="clickable"></select>
             <br>
             <ol id="userTopWords"></ol>
-        </div>
-
-        <div id="wordCloud">
-            <canvas id="wordCloudCanvas">
-            </canvas>
+            <p id="userAvgLength"></p>
+            <p id="userAvgReplyTime"></p>
         </div>
 
         <div id="dayGraph">
@@ -332,8 +337,10 @@ const loadingContainer = document.getElementById("loadingContainer")!
 const loadingBar = document.getElementById("loadingBar")!
 const dataScreen = document.getElementById("dataScreen")!
 const userSelect: HTMLInputElement = document.getElementById("userSelect")! as HTMLInputElement
-userSelect.onchange = fetchCommonWords
+userSelect.onchange = displayCommonWords
 const userTopWordsDisplay = document.getElementById("userTopWords")!
+const userAvgLengthDisplay = document.getElementById("userAvgLength")!
+const userAvgReplyTimeDisplay = document.getElementById("userAvgReplyTime")!
 const selectedChannelDisplay = document.getElementById("selectedChannel")!
 const wordCloudCanvas: HTMLCanvasElement = document.getElementById("wordCloudCanvas")! as HTMLCanvasElement
 const dayGraphDisplay = document.getElementById("dayGraph")!
@@ -469,32 +476,42 @@ async function dig() {
             }[] = await response.json();
 
 
-            msgs.forEach((msg) => {
-                
+            msgs.forEach((msg, i) => {
+
                 // if user hasn't been added yet, initialize them
                 if (!mappedMessages.has(msg.author.username)) {
                     mappedMessages.set(msg.author.username, {
                         allMessages: [],
                         mostUsedWords: [{ word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }],
                         avgMsgLength: 0,
-                        numberOfMessages: 0
-                    })
+                        numberOfMessages: 0,
+                        avgReplyTime: [0, 0]
+                    }
+                    )
+                    userSelect.innerHTML += ` <option value="${msg.author.username}">${msg.author.username}</option>`
                 }
 
-                let userData = mappedMessages.get(msg.author.username)!;
 
+                // update user's data
+                let userData = mappedMessages.get(msg.author.username)!;
                 userData.allMessages.push(msg.content)
                 userData.numberOfMessages += 1;
-                userData.avgMsgLength = userData.avgMsgLength * (1 - 1/userData.numberOfMessages) + msg.content.split(" ").length * (1/userData.numberOfMessages)
+                userData.avgMsgLength = userData.avgMsgLength * (1 - (1 / userData.numberOfMessages)) + msg.content.split(" ").length * (1 / userData.numberOfMessages)
+                
+                // if msg is a gif, add the gif to frequency list
+                if (msg.content.indexOf('https://tenor.com/view') != -1){
+                    gifFrequency.set(msg.content, (gifFrequency.get(msg.content)! + 1 || 1))
+                }
 
+                // get time of the msg
+                let newTimestamp: Date = snowflakeToDate(msg.id)
 
-                // map the dates & times of the msgs to frequency
-                let newTimestamp = snowflakeToDate(msg.id)
-                console.log("latest msg", newTimestamp)
+                // get time between msgs
+                let minutes: number = (+timestamp - +newTimestamp) / (1000 * 60);
 
-                // check if there is a missing date
-                // "+" to convert date to milliseconds
-                if (((+timestamp - +newTimestamp) / (1000 * 3600 * 24)) > 1) {
+                // check if there is a missing date (time between consecutive msgs > 1 day)
+                // ("+" to convert date to milliseconds)
+                if ((minutes / (60 * 24)) > 1) {
                     console.log("gap to be filled")
 
                     // if so, fill in the dates
@@ -505,8 +522,25 @@ async function dig() {
                         datedMessages.set(addedDate.toLocaleDateString(), 0)
                         addedDate.setDate(addedDate.getDate() - 1);
                     }
+
+                    // else (since the delay isn't > 1 day), add the reply time to the last user's avgReplyTime
+                    // but first check that you're not on the first msg AND that the 2 msgs are on the same day - disregard msgs that are on 2 different days. it's likely not a reply to the conversation. even if it is, it's only like 1 msg we are ommitting from the data
+                } else if (i != 0 && timestamp.getDate() == newTimestamp.getDate()) {
+
+                    // check that they're not just replying to themself
+                    if (msgs[i - 1].author.username != msg.author.username) {
+                        
+                        let lastUserData = mappedMessages.get(msgs[i - 1].author.username)!
+                        lastUserData.avgReplyTime[1] += 1 // update number of valid "avgReplyTime" msgs
+ 
+                        lastUserData.avgReplyTime[0] = lastUserData.avgReplyTime[0] * (1 - 1 / lastUserData.avgReplyTime[1]) + minutes * (1 / lastUserData.avgReplyTime[1])
+
+                        // console.log(`${msgs[i - 1].author.username} replied to ${msg.author.username}: ${msgs[i - 1].content}`)
+                        // console.log(`updated reply time for ${msgs[i - 1].author.username}: `, lastUserData.avgReplyTime)
+                        // console.log(minutes)
+                    }
                 }
-                console.log(datedMessages)
+
 
                 timestamp = newTimestamp
                 let date = timestamp.toLocaleDateString()
@@ -516,8 +550,6 @@ async function dig() {
                 timedMessages.set(time, (timedMessages.get(time) || 0) + 1);
             })
 
-            console.log(mappedMessages)
-            console.log(datedMessages)
 
             lastID = msgs[msgs.length - 1].id
 
@@ -532,15 +564,16 @@ async function dig() {
     }
 
 
-    console.log(mappedMessages)
+    console.log(gifFrequency)
     loadingScreen.style.display = "none"
     dataScreen.style.display = "flex"
 
 
-    calculateUserCounts()
+    calculatePieChart()
     fetchWordCloud()
-    fetchCommonWords()
     displayDayTimeGraph()
+    fetchCommonWords()
+    displayCommonWords()
 }
 
 
@@ -634,8 +667,6 @@ function fetchWordCloud() {
 
 
 
-    console.log(mappedWords)
-
     let wordCloudList: [string, number][] = []
     mappedWords.forEach((freq, word) => {
         wordCloudList.push([word, freq])
@@ -674,19 +705,17 @@ function fetchWordCloud() {
 
 
 
-function calculateUserCounts() {
+function calculatePieChart() {
     // calculate user counts + populate userSelect
     let userCounts: number[] = []
     let omitFromPie: string[] = [] // list of users to omit from pie (used when not enough texts sent)
 
-    mappedMessages.forEach((msgs, user) => {
-        if (msgs.allMessages.length / n < 0.001) {
+    mappedMessages.forEach((userData, user) => {
+        if (userData.numberOfMessages / n < 0.001) {
             omitFromPie.push(user)
         } else {
-            userCounts.push(msgs.allMessages.length)
+            userCounts.push(userData.numberOfMessages)
         }
-
-        userSelect.innerHTML += ` <option value="${user}">${user}</option>`
     });
 
 
@@ -715,46 +744,56 @@ function calculateUserCounts() {
 
 
 function fetchCommonWords() {
+
+    // go through each user's userData
+    mappedMessages.forEach((userData) => {
+
+        // generate an array of words used by the user
+        let userWords: string[] = userData.allMessages.join(" ").replace(/[!"’#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g, '').toLowerCase().split(" ").filter(word => word && !stopwords.has(word));
+
+        // frequency map them all (word: frequency)
+        let mappedWords = new Map();
+        userWords.forEach((word) => {
+            mappedWords.set(word, (mappedWords.get(word) + 1 || 1));
+        })
+
+        // get handle for user's mostUsedWords list
+        let topWords = userData.mostUsedWords
+
+        // go through each word to determine top 10 list
+        mappedWords.forEach((freq, word) => {
+
+            // find where the word fits into user's the topWords
+            let i = 9
+            while (freq > topWords[i].freq) {
+                i--;
+                if (i < 0) {
+                    break
+                }
+            }
+
+            // check if while loop ran,
+            // then insert the word
+            if (i < 9) {
+                topWords.splice(i + 1, 0, { word: word, freq: freq })
+                topWords.pop()
+            }
+        });
+    });
+}
+
+
+function displayCommonWords() {
     userTopWordsDisplay.innerHTML = ""
 
-    // get array of words used by the user
-    let selectedUser: string = userSelect.value
-    let userWords: string[] = mappedMessages.get(selectedUser)!.allMessages.join(" ").replace(/[!"’#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g, '').toLowerCase().split(" ").filter(word => word && !stopwords.has(word));
-
-    // map them all (word: frequency)
-    let mappedWords = new Map();
-    userWords.forEach((word) => {
-        mappedWords.set(word, (mappedWords.get(word) + 1 || 1));
-    })
-
-
-    // rank words
-    let topWords = [{ word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }]
-
-    mappedWords.forEach((freq, word) => {
-
-        // find where the word fits into the topWords
-        let i = 9
-        while (freq > topWords[i].freq) {
-            i--;
-            if (i < 0) {
-                break
-            }
-        }
-
-        // check if while loop ran,
-        // then insert the word
-        if (i < 9) {
-            topWords.splice(i + 1, 0, { word: word, freq: freq })
-            topWords.pop()
-        }
-
-    });
-
+    let selectedUserData: userData = mappedMessages.get(userSelect.value)!
+    let topWords = selectedUserData.mostUsedWords
 
     // display rankings
     topWords.forEach((wordObject, index) => {
         userTopWordsDisplay.innerHTML += ` <li>${index + 1}. ${wordObject.word} (${wordObject.freq})</li>`
     })
-}
 
+    userAvgLengthDisplay.innerHTML = `Average message length: ${Math.round(selectedUserData.avgMsgLength * 100) / 100} words`
+    userAvgReplyTimeDisplay.innerHTML = `Average reply time ${Math.round(selectedUserData.avgReplyTime[0] * 100) / 100} mins`
+}
