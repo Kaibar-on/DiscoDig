@@ -53,6 +53,7 @@ let timedMessages: Map<number, number> = new Map([      // time: number of msgs
     [20, 0], [21, 0], [22, 0], [23, 0]
 ]);
 let gifFrequency: Map<string, number> = new Map();      // gif link: # of times used
+let topGifs = [{ gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }]
 
 let chatID: BigInt;
 let n: number;
@@ -223,6 +224,28 @@ discoDig.innerHTML = `
       border: none;
 }
 
+#gifGallery {
+  border-radius: 10px;
+  background-color: rgb(74, 61, 214);
+}
+
+#gifGallery .row {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 4px 4px;
+}
+
+#column-1, #column-2, #column-3  {
+  flex: 30%;
+  padding: 0 4px;
+}
+
+#column-1 img, #column-2 img, #column-3 img {
+  margin-top: 8px;
+  vertical-align: middle;
+  width: 100%;
+}
+
 @keyframes moveBuldozer {
     0% {
         left: -200px;
@@ -308,6 +331,14 @@ discoDig.innerHTML = `
         <div id="timeGraph">
         </div>
 
+        <div id="gifGallery">
+            <div class="row">
+                <div id="column-1"></div>
+                <div id="column-2"></div>
+                <div id="column-3"></div>
+            </div>
+        </div>
+
         <div id="bulldozer">
             <img src="${bulldozerGif}" />
         </div>
@@ -337,7 +368,7 @@ const loadingContainer = document.getElementById("loadingContainer")!
 const loadingBar = document.getElementById("loadingBar")!
 const dataScreen = document.getElementById("dataScreen")!
 const userSelect: HTMLInputElement = document.getElementById("userSelect")! as HTMLInputElement
-userSelect.onchange = displayCommonWords
+userSelect.onchange = displayTopTenWordsPerUser
 const userTopWordsDisplay = document.getElementById("userTopWords")!
 const userAvgLengthDisplay = document.getElementById("userAvgLength")!
 const userAvgReplyTimeDisplay = document.getElementById("userAvgReplyTime")!
@@ -345,6 +376,7 @@ const selectedChannelDisplay = document.getElementById("selectedChannel")!
 const wordCloudCanvas: HTMLCanvasElement = document.getElementById("wordCloudCanvas")! as HTMLCanvasElement
 const dayGraphDisplay = document.getElementById("dayGraph")!
 const timeGraphDisplay = document.getElementById("timeGraph")!
+const gifGalleryDisplay = document.getElementById("gifGallery")!
 
 
 
@@ -435,7 +467,6 @@ async function dig() {
     n = parseInt(nInput.value);
 
     let timestamp = new Date()
-    console.log("timestamp", timestamp)
 
     for (let i = 0; i < Math.ceil(n / 100); i++) {
 
@@ -497,9 +528,9 @@ async function dig() {
                 userData.allMessages.push(msg.content)
                 userData.numberOfMessages += 1;
                 userData.avgMsgLength = userData.avgMsgLength * (1 - (1 / userData.numberOfMessages)) + msg.content.split(" ").length * (1 / userData.numberOfMessages)
-                
+
                 // if msg is a gif, add the gif to frequency list
-                if (msg.content.indexOf('https://tenor.com/view') != -1){
+                if (msg.content.indexOf('https://tenor.com/view') != -1) {
                     gifFrequency.set(msg.content, (gifFrequency.get(msg.content)! + 1 || 1))
                 }
 
@@ -512,7 +543,6 @@ async function dig() {
                 // check if there is a missing date (time between consecutive msgs > 1 day)
                 // ("+" to convert date to milliseconds)
                 if ((minutes / (60 * 24)) > 1) {
-                    console.log("gap to be filled")
 
                     // if so, fill in the dates
                     let addedDate = new Date(timestamp);
@@ -523,22 +553,19 @@ async function dig() {
                         addedDate.setDate(addedDate.getDate() - 1);
                     }
 
-                    // else (since the delay isn't > 1 day), add the reply time to the last user's avgReplyTime
-                    // but first check that you're not on the first msg AND that the 2 msgs are on the same day - disregard msgs that are on 2 different days. it's likely not a reply to the conversation. even if it is, it's only like 1 msg we are ommitting from the data
-                } else if (i != 0 && timestamp.getDate() == newTimestamp.getDate()) {
+                    // else (since the delay isn't > 1 day), see if the reply time is valid to add to their avgReplyTime calculation
+                    // conditions for the reply time to be valid: you're not on the first msg, the 2 msgs are on the same day*, and they're not replying to themself
+                    // *disregard msgs that are on 2 different days. it's likely not a reply to the conversation. even if it is, it's only like 1 msg we are ommitting from the data
+                } else if (i != 0 && timestamp.getDate() == newTimestamp.getDate() && msgs[i - 1].author.username != msg.author.username) {
 
-                    // check that they're not just replying to themself
-                    if (msgs[i - 1].author.username != msg.author.username) {
-                        
-                        let lastUserData = mappedMessages.get(msgs[i - 1].author.username)!
-                        lastUserData.avgReplyTime[1] += 1 // update number of valid "avgReplyTime" msgs
- 
-                        lastUserData.avgReplyTime[0] = lastUserData.avgReplyTime[0] * (1 - 1 / lastUserData.avgReplyTime[1]) + minutes * (1 / lastUserData.avgReplyTime[1])
+                    let lastUserData = mappedMessages.get(msgs[i - 1].author.username)!
 
-                        // console.log(`${msgs[i - 1].author.username} replied to ${msg.author.username}: ${msgs[i - 1].content}`)
-                        // console.log(`updated reply time for ${msgs[i - 1].author.username}: `, lastUserData.avgReplyTime)
-                        // console.log(minutes)
-                    }
+                    lastUserData.avgReplyTime[1] += 1 // update number of valid "avgReplyTime" msgs
+                    lastUserData.avgReplyTime[0] = lastUserData.avgReplyTime[0] * (1 - 1 / lastUserData.avgReplyTime[1]) + minutes * (1 / lastUserData.avgReplyTime[1])
+
+                    // console.log(`${msgs[i - 1].author.username} replied to ${msg.author.username}: ${msgs[i - 1].content}`)
+                    // console.log(`updated reply time for ${msgs[i - 1].author.username}: `, lastUserData.avgReplyTime)
+                    // console.log(minutes)
                 }
 
 
@@ -564,17 +591,80 @@ async function dig() {
     }
 
 
-    console.log(gifFrequency)
     loadingScreen.style.display = "none"
     dataScreen.style.display = "flex"
 
 
     calculatePieChart()
+
     fetchWordCloud()
+
     displayDayTimeGraph()
-    fetchCommonWords()
-    displayCommonWords()
+
+    calculateTopTenWordsPerUser()
+    displayTopTenWordsPerUser()
+
+    calculateTopTenGifs()
+    displayTopTenGifs()
 }
+
+function calculateTopTenGifs() {
+    console.log(gifFrequency)
+    // go through each gif to determine top 10 list
+    gifFrequency.forEach((freq, gif) => {
+
+        // find where the word fits into user's the topWords
+        let i = 9
+        while (freq > topGifs[i].freq) {
+            i--;
+            if (i < 0) {
+                break
+            }
+        }
+
+        // check if while loop ran,
+        // then insert the word
+        if (i < 9) {
+            topGifs.splice(i + 1, 0, { gifLink: gif, freq: freq })
+            topGifs.pop()
+        }
+    });
+
+    console.log(topGifs)
+}
+
+async function fetchTenorGifEmbed(gifId: string) {
+    const apiKey = "LIVDSRZULELA"; // Tenor's public demo key - replace with own
+    const res = await fetch(`https://g.tenor.com/v1/gifs?ids=${gifId}&key=${apiKey}`);
+    const data = await res.json();
+
+    // Direct .gif URL
+    return data.results[0].media[0].gif.url;
+}
+
+
+async function displayTopTenGifs() {
+    console.log(topGifs)
+    document.getElementById(`column-1`)!.innerHTML = ""
+    document.getElementById(`column-2`)!.innerHTML = ""
+    document.getElementById(`column-3`)!.innerHTML = ""
+
+
+
+    for (const [i, gifItem] of topGifs.entries()) {
+        if (gifItem.freq == 0) {
+            break;
+        }
+        const gifId = gifItem.gifLink.match(/(\d+)(?:$|\/|\?)/)![1];
+        gifItem.gifLink = await fetchTenorGifEmbed(gifId);
+
+        console.log(`adding ${gifItem.gifLink}`)
+        document.getElementById(`column-${(i % 3) + 1}`)!.innerHTML += `<img width="30%" src="${gifItem.gifLink}">`;
+    }
+
+
+}
+
 
 
 
@@ -743,7 +833,7 @@ function calculatePieChart() {
 }
 
 
-function fetchCommonWords() {
+function calculateTopTenWordsPerUser() {
 
     // go through each user's userData
     mappedMessages.forEach((userData) => {
@@ -783,7 +873,7 @@ function fetchCommonWords() {
 }
 
 
-function displayCommonWords() {
+function displayTopTenWordsPerUser() {
     userTopWordsDisplay.innerHTML = ""
 
     let selectedUserData: userData = mappedMessages.get(userSelect.value)!
