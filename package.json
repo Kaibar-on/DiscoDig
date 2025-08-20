@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "blastoff": "esbuild content.ts --bundle --minify --sourcemap --outfile=app/content.js --format=iife --target=es2024 --platform=browser --legal-comments=none",
-    "tothemoon": "esbuild content.ts --bundle --minify --outfile=app/content.js --format=iife --target=es2024 --platform=browser --legal-comments=none --define:console.log=null",
+    "tothemoon": "esbuild content.ts --bundle --minify --outfile=app/content.js --format=iife --target=es2024 --platform=browser --legal-comments=none --pure:console.log",
     "lint": "eslint content.ts --ext .ts,.tsx",
     "fix": "eslint content.ts --ext .ts,.tsx --fix"
   },

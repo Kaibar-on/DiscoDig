@@ -83,6 +83,11 @@ function snowflakeToDate(snowflake: number): Date {
     return new Date(Number(timestamp));
 }
 
+// wait (used for waiting in api calls)
+function wait(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // add commas in the nInput
 function formatNInput() {
     const input = nInput.value
@@ -604,7 +609,6 @@ nInput.addEventListener("keypress", (event) => {
 
 
 
-
 function hideWordCloudTooltip() {
     WCTooltip.style.display = 'none';
 }
@@ -698,6 +702,7 @@ async function toggleDD() {
 }
 
 
+
 // main digging function
 async function dig() {
     splashScreen.style.display = "none"
@@ -721,6 +726,8 @@ async function dig() {
     let timestamp = new Date()
 
     for (let i = 0; i < Math.ceil(n / 100); i++) {
+
+        if (i % 100 == 0) { await wait(2000); }
 
         link = `https://discord.com/api/v9/channels/${chatID}/messages?${(i != 0) && `before=${lastID}`}&limit=100`
 
