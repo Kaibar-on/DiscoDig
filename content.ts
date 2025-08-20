@@ -6,6 +6,7 @@ import type PlotlyType from 'plotly.js';
 declare const Plotly: typeof PlotlyType;
 
 import type WordCloudType from 'wordcloud';
+import { ListEntry } from 'wordcloud';
 declare const WordCloud: typeof WordCloudType;
 
 
@@ -32,31 +33,47 @@ const stopwords = new Set([
     "his", "himself", "she",
 ]);
 
-// array of messages, array of most used words, avg msg count, 
 
 interface userData {
+    /** the user's username */
+    username: string,
+    /** the key to the link of the user's pfp */
+    avatarID: string,
+    /** an array of every msg the user has sent */
     allMessages: string[],
+    /** top 10 used words by user */
     mostUsedWords: { word: string, freq: number }[],
+    /** average # of characters in user's msgs */
     avgMsgLength: number,
+    /** number of msgs sent */
     numberOfMessages: number,
-    avgReplyTime: number[]
+    /** avg reply time */
+    avgReplyTime: number[],
+    /** the user they ping the most */
+    mostPinged: { user: string, freq: number },
+    /** number of times they have been pinged */
+    timesPinged: number,
 }
 
 
-let mappedMessages: Map<string, userData> = new Map();  // user: their data
-let datedMessages = new Map();                          // date: number of msgs
-let timedMessages: Map<number, number> = new Map([      // time: number of msgs
+const mappedMessages: Map<string, userData> = new Map();  // user: their data
+const datedMessages = new Map();                          // date: number of msgs
+const timedMessages: Map<number, number> = new Map([      // time: number of msgs
     [0, 0], [1, 0], [2, 0], [3, 0], [4, 0],
     [5, 0], [6, 0], [7, 0], [8, 0], [9, 0],
     [10, 0], [11, 0], [12, 0], [13, 0], [14, 0],
     [15, 0], [16, 0], [17, 0], [18, 0], [19, 0],
     [20, 0], [21, 0], [22, 0], [23, 0]
 ]);
-let gifFrequency: Map<string, number> = new Map();      // gif link: # of times used
+const gifFrequency: Map<string, number> = new Map();      // gif link: # of times used
 let topGifs = [{ gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }]
 
-let chatID: BigInt;
+let chatID: bigint;
 let n: number;
+let channel: {
+    name: string;
+    recipients: { username: string }[]
+};
 
 
 // get date of msgs
@@ -66,8 +83,18 @@ function snowflakeToDate(snowflake: number): Date {
     return new Date(Number(timestamp));
 }
 
+// add commas in the nInput
+function formatNInput() {
+    const input = nInput.value
 
-// get user token (remove before pushing to github)
+    if (input == "") { return }
+
+    const number = parseInt(input.replace(/\D/g, ''))
+    nInput.value = number.toLocaleString()
+}
+
+
+// get user token
 const iframe: HTMLIFrameElement = document.createElement("iframe")
 iframe.style.display = "none"
 const storage = document.body.appendChild(iframe).contentWindow!.localStorage;
@@ -78,25 +105,37 @@ console.log("token obtained: ", token)
 
 // create shovel button
 const DDbutton = document.createElement("img");
-const shovelImg = chrome.runtime.getURL('imgs/shovel.png');
-const activeShovelImg = chrome.runtime.getURL('imgs/shovelActive.png');
+const shovelImg = chrome.runtime.getURL('assets/imgs/shovel.png');
+const activeShovelImg = chrome.runtime.getURL('assets/imgs/shovelActive.png');
 DDbutton.id = "discoDigButton";
 DDbutton.src = shovelImg
 DDbutton.width = 25;
 DDbutton.height = 25;
-DDbutton.onclick = openDD
+DDbutton.onclick = toggleDD
 DDbutton.style.cursor = "pointer"
 
 
 // create DD modal
 const discoDig = document.createElement("span");
 discoDig.id = "discoDigModal";
-const bulldozerGif = chrome.runtime.getURL('imgs/bulldozer.gif');
+const bulldozerGif = chrome.runtime.getURL('assets/imgs/bulldozer.gif');
+const discordFont = chrome.runtime.getURL('assets/fonts/discordFont.ttf');
 
 discoDig.innerHTML = `
 <style>
+@font-face {
+    font-family: 'discordFont';
+    src: url('${discordFont}') format('truetype');
+}
+
 .modebar{
     display: none !important;
+}
+
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -114,7 +153,7 @@ discoDig.innerHTML = `
     float:right;
     border-radius: 100%;
     background-color: red;
-    color: white;
+    color: #F1FFE7;
     height: 30px;
     width: 30px;
 }
@@ -138,13 +177,109 @@ discoDig.innerHTML = `
     overflow-y: scroll;
 }
 
-#title {
+#selectedChannel {
     text-align: center;
-    color: white;
+    color: #F1FFE7;
     font-size: 40px;
     font-weight: strong;
     margin-bottom: 20px;
+    margin-top: 15px;
 }
+
+#title {
+    color: #89DAFF;
+    text-align: center;
+    font-family: discordFont;
+}
+
+.logoText {
+    color: #89DAFF;
+    font-family: discordFont;
+    margin-right: 5px;
+}
+
+#promptBox {
+    padding: 19px;
+    margin: auto;
+    display: flex;
+    width: 70%;
+    max-width: 500px; 
+    flex-direction: column; 
+    align-items: center; 
+    justify-content: center; 
+    background-color: #4337cdff; 
+    border-radius: 20px;
+}
+
+#prompt {
+    text-align: center;
+    font-size: 30px;
+    color: #CB9CF2;
+}
+
+#inputLabel {
+    font-size: 23px;
+    display: inline-block;
+    color: #F1FFE7;
+}
+
+#nInput {
+    display: inline-block; 
+    background-color: rgba(0,0,0,0); 
+    border: none; 
+    border-bottom: 2px #F1FFE7 solid; 
+    text-align: right;
+    width: 100px; 
+    font-size: 23px;
+    color: #F1FFE7;
+}
+
+#digBtn {
+    display: block;
+    background-color: #44CF6C;
+    font-size: 20px;
+    border-radius: 10px;
+    width: 100px;
+}
+
+#digBtn:hover {
+    background-color: #26a94bff;
+}
+
+#loadingScreen {
+    display: none
+}
+
+#loadingScreen #progressDisplay {
+    color: #F1FFE7;
+    text-align: center;
+    font-size: 19px;
+}
+
+#loadingContainer {
+    height: 24px;
+    width: 80%;
+    border: 1px grey solid;
+    background-color: rgba(0, 0, 0, 0);
+    border-radius: 20px;
+    z-index: 1000;
+    margin: auto;
+}
+
+#loadingBar {
+    height: 24px;
+    width: 0%;
+    background-color: #CB9CF2;
+    border-radius: 20px 0px 0px 20px;
+}
+ 
+#loadingScreen p {
+    color: #F1FFE7;
+    text-align: center;
+    font-size: 13px;
+    font-style: italic;
+}
+
 
 #dataScreen {
   display: none;
@@ -154,11 +289,8 @@ discoDig.innerHTML = `
   gap: 20px;
 }
 
-#loadingScreen {
-    display: none
-}
 
-#userCounts, #userWordCounts, #wordCloud {
+#pieChartContainer, #userProfile, #wordCloud {
     margin: 5px;
     background-color: rgb(74, 61, 214);
     height: 400px;
@@ -166,17 +298,35 @@ discoDig.innerHTML = `
     overflow: hidden;
 }
 
-#userCounts {
-    width: 45%;
-}
-
-#userWordCounts {
-    width: 50%;
+#pieChartContainer {
+    width: 36%;
 }
 
 #wordCloud {
-    width: 45%;
+    width: 54%;
 }
+
+#wordCloudTooltip, #gifTooltip {
+    position: absolute;
+    background-color: rgba(68, 207, 108, 0.9);
+    color: black;
+    padding: 5px;
+    borderRadius: 3px;
+    z-index: 1001;
+    display: none;
+}
+
+.subheading {
+    color: #F1FFE7;
+    text-align: center;
+    font-size: 25px;
+    margin: 14px;
+}
+
+#pieChart {
+    height: 340px;
+}
+
 
 #dayGraph, #timeGraph {
     width: 45%;
@@ -188,9 +338,83 @@ discoDig.innerHTML = `
     border-radius: 10px;
 }
 
-#selectedChannel {
-    color: white;
+
+#userProfile {
+    width: 95%;
+    max-width: 750px;
+}
+
+#userProfileHead {
+    display: flex;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+#userSelect {
+    margin-right: 15px;
+    background-color:rgb(74, 61, 214);
+    color: #F1FFE7;
+    text-align: right;
+    font-size: 25px;
+    border: none;
+}
+
+#userProfilePic {
+    display: block;
+    border-radius: 100%;
+    width: 50px;
+}
+
+#userProfileBody {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#userProfileBody #topTenWords {
+    width: 40%;
+}
+
+#userProfileBody #userGeneralStats {
+    width: 60%
+}
+
+#userProfile p, #userProfile ol {
     text-align: center;
+    color: #F1FFE7;
+    font-size: 27px;
+    margin-top: 14px;
+}
+
+#userProfile ol li {
+    margin-top: 3px;
+}
+
+
+#gifGallery {
+  background-color: rgb(74, 61, 214);
+  width: 95%;
+  margin: auto;
+  padding-bottom: 4px;
+}
+
+
+#gifGallery .row {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 4px 4px;
+}
+
+#column-1, #column-2, #column-3  {
+  flex: 30%;
+  padding: 0 4px;
+  height: auto;
+}
+
+#gifGallery img {
+  margin-top: 8px;
+  vertical-align: middle;
+  width: 100%;
 }
 
 #bulldozer {
@@ -204,46 +428,6 @@ discoDig.innerHTML = `
     position: absolute;
     animation: moveBuldozer 10s linear infinite;
     height: 100%;
-}
-
-
-#userTopWords, #userAvgLength, #userAvgReplyTime {
-    text-align: center;
-    color: white;
-    font-size: 27px;
-}
-
-#userSelect   {
-    width: 200px;
-    margin: 0 auto;
-    display: block;
-     background-color:rgb(60, 194, 132);
-      color: white;
-      padding: 10px;
-      font-size: 16px;
-      border: none;
-}
-
-#gifGallery {
-  border-radius: 10px;
-  background-color: rgb(74, 61, 214);
-}
-
-#gifGallery .row {
-  display: flex;
-  flex-wrap: wrap;
-  padding: 4px 4px;
-}
-
-#column-1, #column-2, #column-3  {
-  flex: 30%;
-  padding: 0 4px;
-}
-
-#column-1 img, #column-2 img, #column-3 img {
-  margin-top: 8px;
-  vertical-align: middle;
-  width: 100%;
 }
 
 @keyframes moveBuldozer {
@@ -269,60 +453,86 @@ discoDig.innerHTML = `
     }
 }
 
-#loadingContainer {
-    height: 24px;
-    width: 80%;
-    border: 1px grey solid;
-    background-color: rgba(0, 0, 0, 0);
-}
-
-#loadingBar {
-    height: 24px;
-    width: 0%;
-    background-color: red;
-}
-
 #credits {
-    color: white;
+    color: #F1FFE7;
 }
 </style>
 
 
+<div id="wordCloudTooltip"></div>
+<div id="gifTooltip"></div>
+
 <div id="DDContainer">
   <div id="DDDiv">
-    <h2 id="title">DiscoDig</h2>
-    <h3 id="selectedChannel"></h3>
+    <h2 id="selectedChannel"></h2>
+    <h3 id="title">DiscoDig</h3>
+
+    <br>
 
     <div id="splashScreen">
-        <input type="number" id="nInput"> how many msgs? </input>
-        <br>
-        <button id="digBtn"> dig! </button>
+        <br><br><br><br><br>
+        <div id="promptBox">
+            <p id="prompt"> How deep should we dig? </p>
+            <div>
+                <span style="color: rgba(0,0,0,0); font-size: 15px"> (messages)</span>
+                <input type="text" id="nInput"> </input>
+                <p id="inputLabel">
+                    m <span style="font-size: 12px"> (messages)</span>
+                </p>
+            </div>
+            <br>
+            <button id="digBtn"> Dig! </button>
+        </div>
     </div>
 
     <div id="loadingScreen">
-        <div id="bulldozer">
-            <img src="${bulldozerGif}" />
-        </div>
-        <p id="progress"></p>
+        <br><br><br><br>
+        <p id="progressDisplay"></p>
         <div id="loadingContainer">
             <div id="loadingBar"></div>
+        </div>
+
+        <p>you can close this popup, <span class="logoText">DiscoDig</span> will keep digging!</p>
+
+        <br><br><br><br>
+
+        <div id="bulldozer">
+            <img src="${bulldozerGif}" />
         </div>
     </div>
 
     <div id="dataScreen">
-        <div id="userCounts"></div>
+        <div id="pieChartContainer">
+            <h3 class="subheading">Share of Messages</h3>
+            <div id="pieChart"></div>
+        </div>
 
         <div id="wordCloud">
             <canvas id="wordCloudCanvas">
             </canvas>
         </div>
 
-        <div id="userWordCounts">
-            <select id="userSelect" class="clickable"></select>
+        <div id="userProfile">
+            <div id="userProfileHead">
+                <select id="userSelect"></select>
+                <img id="userProfilePic" src="">
+            </div>
+
             <br>
-            <ol id="userTopWords"></ol>
-            <p id="userAvgLength"></p>
-            <p id="userAvgReplyTime"></p>
+
+            <div id="userProfileBody">
+                <div id="topTenWords">
+                    <ol id="userTopWords"></ol>
+                </div>
+
+                <div id="userGeneralStats">
+                    <p id="userAvgLength"></p>
+                    <p id="userAvgReplyTime"></p>
+                    <p id="userMostPinged"></p>
+                    <p id="timesPinged"></p>
+                    <p style="color: rgba(0,0,0,0)">.</p>
+                </div>
+            </div>
         </div>
 
         <div id="dayGraph">
@@ -332,6 +542,8 @@ discoDig.innerHTML = `
         </div>
 
         <div id="gifGallery">
+            <br>
+            <h3 class="subheading" style="font-size: 30px"> Most Used Gifs </h3>
             <div class="row">
                 <div id="column-1"></div>
                 <div id="column-2"></div>
@@ -343,7 +555,7 @@ discoDig.innerHTML = `
             <img src="${bulldozerGif}" />
         </div>
 
-        <p id="credits">made by <a href="https://vidsterbroyo.com/">vidu widyalankara</a> & <a href="https://www.linkedin.com/in/kai-bar-on/">kai bar-on</a></p>
+        <p id="credits"><span class="logoText">DiscoDig</span> by <a href="https://vidsterbroyo.com/">vidu widyalankara</a> & <a href="https://www.linkedin.com/in/kai-bar-on/">kai bar-on</a></p>
     </div>
 
     <br>
@@ -363,20 +575,53 @@ document.getElementById("digBtn")!.onclick = dig
 const splashScreen = document.getElementById("splashScreen")!
 const nInput: HTMLInputElement = document.getElementById("nInput")! as HTMLInputElement
 const loadingScreen = document.getElementById("loadingScreen")!
-const progressStatus = document.getElementById("progress")!
-const loadingContainer = document.getElementById("loadingContainer")!
+const progressStatus = document.getElementById("progressDisplay")!
 const loadingBar = document.getElementById("loadingBar")!
 const dataScreen = document.getElementById("dataScreen")!
 const userSelect: HTMLInputElement = document.getElementById("userSelect")! as HTMLInputElement
-userSelect.onchange = displayTopTenWordsPerUser
+userSelect.onchange = displayUserProfile
+const userProfilePic = document.getElementById("userProfilePic")! as HTMLImageElement
 const userTopWordsDisplay = document.getElementById("userTopWords")!
 const userAvgLengthDisplay = document.getElementById("userAvgLength")!
 const userAvgReplyTimeDisplay = document.getElementById("userAvgReplyTime")!
+const userMostPinged = document.getElementById("userMostPinged")!
+const timesPingedDisplay = document.getElementById("timesPinged")!
 const selectedChannelDisplay = document.getElementById("selectedChannel")!
 const wordCloudCanvas: HTMLCanvasElement = document.getElementById("wordCloudCanvas")! as HTMLCanvasElement
+const WCTooltip = document.getElementById('wordCloudTooltip')!
+wordCloudCanvas.onmouseleave = hideWordCloudTooltip
 const dayGraphDisplay = document.getElementById("dayGraph")!
 const timeGraphDisplay = document.getElementById("timeGraph")!
-const gifGalleryDisplay = document.getElementById("gifGallery")!
+const gifGallery = document.getElementById("gifGallery")!
+const gifTooltip = document.getElementById('gifTooltip')!
+
+nInput.onkeyup = formatNInput
+nInput.addEventListener("keypress", (event) => {
+    if (event.key === "Enter") {
+        dig()
+    }
+});
+
+
+
+
+function hideWordCloudTooltip() {
+    WCTooltip.style.display = 'none';
+}
+
+function showWordCloudTooltip(item: ListEntry, dimension: { x: number, y: number, w: number, h: number }) {
+    if (!item) { hideWordCloudTooltip(); return }
+
+    const canvasDimension: DOMRect = wordCloudCanvas.getBoundingClientRect();
+
+    // set tooltip content and position
+    WCTooltip.innerHTML = `${item[0]}: ${item[1]}`;
+    WCTooltip.style.left = (canvasDimension.x + dimension.x + ((dimension.w - WCTooltip.offsetWidth) / 2)) + 'px'; // center tooltip horizontally
+    WCTooltip.style.top = (dimension.y + canvasDimension.y - 30) + 'px'; // position above the word
+    WCTooltip.style.display = 'block';
+}
+
+
 
 
 
@@ -387,7 +632,7 @@ const observer = new MutationObserver((mutationsList) => {
             for (const node of mutation.addedNodes) {
                 if ((node as HTMLElement).querySelector?.(".toolbar__9293f")) { // search for toolbar 
                     console.log("new DM opened");
-                    spawnButton()
+                    onNewDmOpen()
                 }
             }
         }
@@ -400,41 +645,15 @@ observer.observe(document.body, {
 });
 
 
-// spawn button in toolbar
-function spawnButton() {
-    console.log("button spawning...")
 
+// spawn button in toolbar + get channel name
+async function onNewDmOpen() {
+    // spawn button
     const toolbar = document.getElementsByClassName("toolbar__9293f")[0];
     toolbar.appendChild(DDbutton);
-}
 
-
-// on shovel press
-async function openDD() {
-    console.log("DD opened!");
-
-    if (discoDig.style.display == "block") {
-        discoDig.style.display = "none"
-        DDbutton.src = shovelImg
-        return
-    }
-
-    discoDig.style.display = "block";
-    DDbutton.src = activeShovelImg
-
-    // if still on same DM, do nothing
-    if (BigInt(window.location.href.slice(33)) == chatID) {
-        return
-    }
-
-    chatID = BigInt(window.location.href.slice(33));
-
-    dataScreen.style.display = "none";
-    splashScreen.style.display = "block"
-
-
-    // fetch + display name of channel
-    let response = await fetch(`https://discord.com/api/v9/channels/${chatID}`, {
+    // fetch name of channel
+    const response = await fetch(`https://discord.com/api/v9/channels/${BigInt(window.location.href.slice(33))}`, {
         method: "GET",
         headers: {
             "Content-Type": "application/json",
@@ -442,10 +661,41 @@ async function openDD() {
         }
     });
 
-    let channel: { name: string; recipients: { username: string }[] } = await response.json()
-    selectedChannelDisplay.innerHTML = channel.name || `DMs w/ ${channel.recipients[0].username}`
+    channel = await response.json()
+    console.log("the opened channel:", channel)
 }
 
+
+// on shovel press
+async function toggleDD() {
+
+    // close modal (if alrd opened)
+    if (discoDig.style.display == "block") {
+        discoDig.style.display = "none"
+        DDbutton.src = shovelImg
+        return
+    }
+
+    // else, open modal
+    discoDig.style.display = "block";
+    DDbutton.src = activeShovelImg
+
+
+    // display channel name
+    if (channel.recipients.length > 1) {
+        selectedChannelDisplay.innerHTML = channel.name || `Unnamed GC`
+    } else {
+        selectedChannelDisplay.innerHTML = `DMs w/ ${channel.recipients[0].username}`;
+    }
+
+
+    // set user back to splashScreen IF the dm is a new dm from last time
+    if (BigInt(window.location.href.slice(33)) != chatID) {
+        chatID = BigInt(window.location.href.slice(33));
+        dataScreen.style.display = "none";
+        splashScreen.style.display = "block"
+    }
+}
 
 
 // main digging function
@@ -455,16 +705,18 @@ async function dig() {
 
     mappedMessages.clear()
     datedMessages.clear()
+    gifFrequency.clear()
+    topGifs = [{ gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }]
 
     userSelect.innerHTML = ""
     userTopWordsDisplay.innerHTML = ""
-    let link: string;
 
+    let link: string;
     let lastID: number = 69;
     let time: number = 420; // just to appease the typescript gods
 
 
-    n = parseInt(nInput.value);
+    n = parseInt(nInput.value.replace(/\D/g, ''));
 
     let timestamp = new Date()
 
@@ -483,48 +735,60 @@ async function dig() {
 
 
             if (!response.ok) {
-                let error = await response.json();
+                const error = await response.json();
 
                 if (response.status == 429) {
-                    console.log("yikes getting rate limited")
                     console.log(error)
                     console.log(error.retry_after)
+                    alert("error 429: discodig got rate limited - please try again later :(")
+                    throw new Error("getting rate limited")
                 }
                 else {
                     console.log("some non-429 api error")
-                    console.log(error)
+                    throw new Error(error)
                 }
-
-                throw new Error("beep boop error");
             }
 
-            let msgs: {
+            const msgs: {
                 id: number,
                 author: {
-                    username: string
+                    username: string,
+                    id: string,
+                    avatar: string,
+                    bot: boolean
                 },
                 content: string
             }[] = await response.json();
 
+            if (msgs.length == 0) {
+                console.log("reached end of chats")
+                break
+            }
 
             msgs.forEach((msg, i) => {
+                // ignore msg if sent by a bot or deleted user
+                if (msg.author.bot == true || msg.author.username == "Deleted User") { return }
 
                 // if user hasn't been added yet, initialize them
-                if (!mappedMessages.has(msg.author.username)) {
-                    mappedMessages.set(msg.author.username, {
+                if (!mappedMessages.has(msg.author.id)) {
+                    console.log(msg.author)
+                    mappedMessages.set(msg.author.id, {
+                        username: msg.author.username,
+                        avatarID: msg.author.avatar,
                         allMessages: [],
                         mostUsedWords: [{ word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }],
                         avgMsgLength: 0,
                         numberOfMessages: 0,
-                        avgReplyTime: [0, 0]
-                    }
-                    )
-                    userSelect.innerHTML += ` <option value="${msg.author.username}">${msg.author.username}</option>`
+                        avgReplyTime: [0, 0],
+                        mostPinged: { user: "", freq: 0 },
+                        timesPinged: 0,
+                    })
+                    userSelect.innerHTML += ` <option value="${msg.author.id}">${msg.author.username}&nbsp</option>`
                 }
 
 
                 // update user's data
-                let userData = mappedMessages.get(msg.author.username)!;
+                const userData = mappedMessages.get(msg.author.id)!;
                 userData.allMessages.push(msg.content)
                 userData.numberOfMessages += 1;
                 userData.avgMsgLength = userData.avgMsgLength * (1 - (1 / userData.numberOfMessages)) + msg.content.split(" ").length * (1 / userData.numberOfMessages)
@@ -535,17 +799,17 @@ async function dig() {
                 }
 
                 // get time of the msg
-                let newTimestamp: Date = snowflakeToDate(msg.id)
+                const newTimestamp: Date = snowflakeToDate(msg.id)
 
                 // get time between msgs
-                let minutes: number = (+timestamp - +newTimestamp) / (1000 * 60);
+                const minutes: number = (+timestamp - +newTimestamp) / (1000 * 60);
 
                 // check if there is a missing date (time between consecutive msgs > 1 day)
                 // ("+" to convert date to milliseconds)
                 if ((minutes / (60 * 24)) > 1) {
 
                     // if so, fill in the dates
-                    let addedDate = new Date(timestamp);
+                    const addedDate = new Date(timestamp);
                     addedDate.setDate(addedDate.getDate() - 1);
 
                     while (addedDate > newTimestamp) {
@@ -558,11 +822,13 @@ async function dig() {
                     // *disregard msgs that are on 2 different days. it's likely not a reply to the conversation. even if it is, it's only like 1 msg we are ommitting from the data
                 } else if (i != 0 && timestamp.getDate() == newTimestamp.getDate() && msgs[i - 1].author.username != msg.author.username) {
 
-                    let lastUserData = mappedMessages.get(msgs[i - 1].author.username)!
+                    // skip updating the last user's reply time if the last user doesn't exist (happens if last user was a bot)
+                    if (mappedMessages.get(msgs[i - 1].author.id)) {
+                        const lastUserData = mappedMessages.get(msgs[i - 1].author.id)!
 
-                    lastUserData.avgReplyTime[1] += 1 // update number of valid "avgReplyTime" msgs
-                    lastUserData.avgReplyTime[0] = lastUserData.avgReplyTime[0] * (1 - 1 / lastUserData.avgReplyTime[1]) + minutes * (1 / lastUserData.avgReplyTime[1])
-
+                        lastUserData.avgReplyTime[1] += 1 // update number of valid "avgReplyTime" msgs
+                        lastUserData.avgReplyTime[0] = lastUserData.avgReplyTime[0] * (1 - 1 / lastUserData.avgReplyTime[1]) + minutes * (1 / lastUserData.avgReplyTime[1])
+                    }
                     // console.log(`${msgs[i - 1].author.username} replied to ${msg.author.username}: ${msgs[i - 1].content}`)
                     // console.log(`updated reply time for ${msgs[i - 1].author.username}: `, lastUserData.avgReplyTime)
                     // console.log(minutes)
@@ -570,7 +836,7 @@ async function dig() {
 
 
                 timestamp = newTimestamp
-                let date = timestamp.toLocaleDateString()
+                const date = timestamp.toLocaleDateString()
                 time = timestamp.getHours()
 
                 datedMessages.set(date, (datedMessages.get(date) || 0) + 1);
@@ -580,14 +846,10 @@ async function dig() {
 
             lastID = msgs[msgs.length - 1].id
 
-            progressStatus.innerHTML = `${(i + 1) * 100} / ${n} messages loaded`
+            progressStatus.innerHTML = `${((i + 1) * 100).toLocaleString()} / ${n.toLocaleString()} messages loaded`
             loadingBar.style.width = `${((i + 1) * 100 / n) * 100}%`
 
-        } catch (error) {
-            console.error(error);
-        }
-
-
+        } catch (error) { console.error(error); }
     }
 
 
@@ -602,7 +864,7 @@ async function dig() {
     displayDayTimeGraph()
 
     calculateTopTenWordsPerUser()
-    displayTopTenWordsPerUser()
+    displayUserProfile()
 
     calculateTopTenGifs()
     displayTopTenGifs()
@@ -638,39 +900,79 @@ async function fetchTenorGifEmbed(gifId: string) {
     const res = await fetch(`https://g.tenor.com/v1/gifs?ids=${gifId}&key=${apiKey}`);
     const data = await res.json();
 
-    // Direct .gif URL
-    return data.results[0].media[0].gif.url;
+    return [data.results[0].media[0].gif.url, data.results[0].media[0].gif.dims];
 }
 
 
 async function displayTopTenGifs() {
     console.log(topGifs)
-    document.getElementById(`column-1`)!.innerHTML = ""
-    document.getElementById(`column-2`)!.innerHTML = ""
-    document.getElementById(`column-3`)!.innerHTML = ""
 
+    const columns = [{ column: document.getElementById(`column-1`)!, aspectRatioSum: 0 }, { column: document.getElementById(`column-2`)!, aspectRatioSum: 0 }, { column: document.getElementById(`column-3`)!, aspectRatioSum: 0 }]
+    let gifDims;
+
+    // if no gifs found in chat
+    if (gifFrequency.size == 0) {
+        columns[1].column.innerHTML = "<p style='text-align: center; color: #F1FFE7;'>no gifs found in chat :(</p>"
+        return
+    }
+
+    columns[0].column.innerHTML = ""
+    columns[1].column.innerHTML = ""
+    columns[2].column.innerHTML = ""
 
 
     for (const [i, gifItem] of topGifs.entries()) {
-        if (gifItem.freq == 0) {
-            break;
-        }
-        const gifId = gifItem.gifLink.match(/(\d+)(?:$|\/|\?)/)![1];
-        gifItem.gifLink = await fetchTenorGifEmbed(gifId);
 
-        console.log(`adding ${gifItem.gifLink}`)
-        document.getElementById(`column-${(i % 3) + 1}`)!.innerHTML += `<img width="30%" src="${gifItem.gifLink}">`;
+        // exit loop if reach empty gif object
+        if (gifItem.freq == 0) { break; }
+
+        // if gifLink invalid, skip
+        if (!gifItem.gifLink.match(/(\d+)(?:$|\/|\?)/)) { continue }
+
+
+        const gifId = gifItem.gifLink.match(/(\d+)(?:$|\/|\?)/)![1]; // extract the gifID from the link
+        [gifItem.gifLink, gifDims] = await fetchTenorGifEmbed(gifId); // fetch the gif embed link + dimensions
+
+
+        // for last gif, place it in the shortest column
+        if (i == 9) {
+            columns.sort((a, b) => b.aspectRatioSum - a.aspectRatioSum)
+            console.log(columns)
+            columns[0].column.innerHTML += `<img src="${gifItem.gifLink}" alt="${gifItem.freq}">`;
+            break
+        }
+
+        // add gif to column
+        columns[(i % 3)].column.innerHTML += `<img src="${gifItem.gifLink}" alt="${gifItem.freq}">`;
+        columns[(i % 3)].aspectRatioSum += gifDims[0] / gifDims[1] // keep track of aspectRatioSum of each column to determine shortest column later
     }
 
+    document.querySelectorAll("#gifGallery img").forEach(e => {
+        e.addEventListener("mouseenter", () => {
+            let img = e as HTMLImageElement
+            let imgBox = img.getBoundingClientRect()
 
+            // set tooltip content and position
+            gifTooltip.innerHTML = `Used ${img.alt} time${parseInt(img.alt) > 1 ? 's' : ''}`;
+            gifTooltip.style.left = (imgBox.x + ((imgBox.width - 80) / 2)) + 'px'; // center tooltip horizontally
+            gifTooltip.style.top = (imgBox.y - 30) + 'px'; // position above the gif
+            gifTooltip.style.display = 'block';
+            gifTooltip.style.position = "fixed"
+        });
+
+        e.addEventListener("mouseleave", () => {
+            gifTooltip.style.display = 'none';
+        });
+    });
 }
+
 
 
 
 
 // display time graph
 function displayDayTimeGraph() {
-    let dayData: Plotly.Data = {
+    const dayData: Plotly.Data = {
         x: [...datedMessages.keys()].reverse(),
         y: [...datedMessages.values()].reverse(),
         type: 'scatter',
@@ -680,7 +982,7 @@ function displayDayTimeGraph() {
         }
     };
 
-    let timeData: Plotly.Data = {
+    const timeData: Plotly.Data = {
         x: [
             "12am", "1am", "2am", "3am", "4am", "5am",
             "6am", "7am", "8am", "9am", "10am", "11am",
@@ -701,7 +1003,7 @@ function displayDayTimeGraph() {
             title: { text: "Number of Messages Per Day" },
             paper_bgcolor: "rgba(0, 0, 0, 0)",
             plot_bgcolor: "rgba(0, 0, 0, 0)",
-            font: { color: 'white' },
+            font: { color: '#F1FFE7' },
             margin: {
                 r: 40,
                 l: 40
@@ -721,7 +1023,7 @@ function displayDayTimeGraph() {
             title: { text: "Total Number of Messages Per Time of Day" },
             paper_bgcolor: "rgba(0, 0, 0, 0)",
             plot_bgcolor: "rgba(0, 0, 0, 0)",
-            font: { color: 'white' },
+            font: { color: '#F1FFE7' },
             margin: {
                 r: 40,
                 l: 40
@@ -743,28 +1045,22 @@ function fetchWordCloud() {
     // convert it to a list
     let allWords: string[] = []
 
-    mappedMessages.forEach((user: userData) => {
-        allWords = allWords.concat(user.allMessages.join(" ").replace(/[!"’#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g, '').toLowerCase().split(" ").filter(word => word && !stopwords.has(word)));
+    mappedMessages.forEach((userData) => {
+        allWords = allWords.concat(userData.allMessages.join(" ").replace(/[!"”“’#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g, '').toLowerCase().split(" ").filter(word => (!stopwords.has(word) && !word.startsWith("https"))));
     })
 
 
-
     // map them all
-    let mappedWords = new Map();
+    const mappedWords = new Map();
     allWords.forEach((word) => {
         mappedWords.set(word, (mappedWords.get(word) + 1 || 1));
     })
 
 
-
-    let wordCloudList: [string, number][] = []
+    const wordCloudList: [string, number][] = []
     mappedWords.forEach((freq, word) => {
         wordCloudList.push([word, freq])
     })
-
-    console.log(mappedWords)
-    console.log(wordCloudList)
-
 
 
     wordCloudCanvas.width = wordCloudCanvas.offsetWidth;
@@ -789,46 +1085,34 @@ function fetchWordCloud() {
             return minFontSize + normalized * (maxFontSize - minFontSize);
         },
         // shrinkToFit: true,
-        hover: (item) => console.log(item)
+        hover: showWordCloudTooltip
     });
 }
 
 
 
 function calculatePieChart() {
-    // calculate user counts + populate userSelect
-    let userCounts: number[] = []
-    let omitFromPie: string[] = [] // list of users to omit from pie (used when not enough texts sent)
-
-    mappedMessages.forEach((userData, user) => {
-        if (userData.numberOfMessages / n < 0.001) {
-            omitFromPie.push(user)
-        } else {
-            userCounts.push(userData.numberOfMessages)
-        }
-    });
-
 
     // display user counts
-    var data: Plotly.Data[] = [{
+    const data: Plotly.Data[] = [{
         type: "pie",
-        values: userCounts,
-        labels: [...mappedMessages.keys()].filter((user) => !omitFromPie.includes(user)), // .keys() returns an iterable - ... spreads it
+        values: [...mappedMessages.values()].map(userData => userData.numberOfMessages),
+        labels: [...mappedMessages.values()].map(userData => userData.username), // get the userData values, get the usernames, filter the usernames
         textinfo: "label+percent",
         insidetextorientation: "radial",
         automargin: true
     }]
 
-    var layout = {
+    const layout = {
         paper_bgcolor: "rgba(0, 0, 0, 0)",
         margin: { "t": 0, "b": 0, "l": 0, "r": 0 },
         showlegend: false,
         font: {
-            color: 'white'
+            color: '#F1FFE7'
         }
     }
 
-    const userCountDisplay: HTMLElement = document.getElementById('userCounts')!;
+    const userCountDisplay: HTMLElement = document.getElementById('pieChart')!;
     Plotly.newPlot(userCountDisplay, data, layout, { responsive: true })
 }
 
@@ -839,16 +1123,50 @@ function calculateTopTenWordsPerUser() {
     mappedMessages.forEach((userData) => {
 
         // generate an array of words used by the user
-        let userWords: string[] = userData.allMessages.join(" ").replace(/[!"’#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g, '').toLowerCase().split(" ").filter(word => word && !stopwords.has(word));
+        const userWords: string[] = userData.allMessages.join(" ").replace(/[!"’#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g, '').toLowerCase().split(" ").filter(word => (!stopwords.has(word) && !word.startsWith("https") && word != ""));
 
-        // frequency map them all (word: frequency)
-        let mappedWords = new Map();
+        // frequency map the words & pings (word/ping: frequency)
+        const mappedWords: Map<string, number> = new Map();
+        const mappedPings: Map<string, number> = new Map();
+
         userWords.forEach((word) => {
-            mappedWords.set(word, (mappedWords.get(word) + 1 || 1));
+
+            // check if word is actually a userID
+            if (word.length == 18 && !isNaN(parseInt(word))) {
+
+                // update the pinged user's timesPinged
+                if (mappedMessages.get(word)) {
+                    mappedMessages.get(word)!.timesPinged += 1
+                }
+
+                // add pinged user to the ping frequency map
+                mappedPings.set(word, (mappedPings.get(word) || 0) + 1);
+                return;
+            }
+
+            // otherwise just add the word to mappedWords
+            mappedWords.set(word, (mappedWords.get(word) || 0) + 1);
         })
 
         // get handle for user's mostUsedWords list
-        let topWords = userData.mostUsedWords
+        const mostPinged = userData.mostPinged
+
+        // find most pinged userID
+        mappedPings.forEach((freq, userID) => {
+            if (freq > mostPinged.freq) {
+                mostPinged.freq = freq
+                mostPinged.user = userID
+            }
+        })
+
+        // convert userID to username (after checking that its not empty)
+        if (mostPinged.user != "") {
+            mostPinged.user = mappedMessages.get(mostPinged.user)!.username
+        }
+
+
+        // get handle for user's mostUsedWords list
+        const topWords = userData.mostUsedWords
 
         // go through each word to determine top 10 list
         mappedWords.forEach((freq, word) => {
@@ -873,17 +1191,37 @@ function calculateTopTenWordsPerUser() {
 }
 
 
-function displayTopTenWordsPerUser() {
-    userTopWordsDisplay.innerHTML = ""
+function displayUserProfile() {
+    const selectedUserData: userData = mappedMessages.get(userSelect.value)!
+    const topWords = selectedUserData.mostUsedWords
 
-    let selectedUserData: userData = mappedMessages.get(userSelect.value)!
-    let topWords = selectedUserData.mostUsedWords
+    userProfilePic.src = `https://cdn.discordapp.com/avatars/${userSelect.value}/${selectedUserData.avatarID}.webp?size=100`
 
     // display rankings
-    topWords.forEach((wordObject, index) => {
-        userTopWordsDisplay.innerHTML += ` <li>${index + 1}. ${wordObject.word} (${wordObject.freq})</li>`
-    })
+    userTopWordsDisplay.innerHTML = ""
+    for (const [i, wordObject] of topWords.entries()) {
+        if (wordObject.freq == 0) {
+            break
+        }
+        userTopWordsDisplay.innerHTML += ` <li>${i + 1}. ${wordObject.word} (${wordObject.freq})</li>`
+    }
 
+    console.log("user's top words", topWords)
+
+    // other stats
     userAvgLengthDisplay.innerHTML = `Average message length: ${Math.round(selectedUserData.avgMsgLength * 100) / 100} words`
-    userAvgReplyTimeDisplay.innerHTML = `Average reply time ${Math.round(selectedUserData.avgReplyTime[0] * 100) / 100} mins`
+    userAvgReplyTimeDisplay.innerHTML = `Average reply time: ${Math.round(selectedUserData.avgReplyTime[0] * 100) / 100} mins`
+
+    if (selectedUserData.mostPinged.freq == 0) {
+        userMostPinged.innerHTML = `Bothered nobody`
+    } else {
+        userMostPinged.innerHTML = `Pinged ${selectedUserData.mostPinged.user} ${selectedUserData.mostPinged.freq} times`
+    }
+
+    if (selectedUserData.timesPinged == 0) {
+        timesPingedDisplay.innerHTML = `Was never bothered (0 pings)`
+    } else {
+        timesPingedDisplay.innerHTML = `Was pinged ${selectedUserData.timesPinged} times`
+    }
+
 }
