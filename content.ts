@@ -2,19 +2,15 @@
 // this way, the .js file won't re-import the libraries 
 // which will break the code since it's running in chrome, not node
 
-import type PlotlyType from 'plotly.js';
 declare const Plotly: typeof PlotlyType;
+import type PlotlyType from 'plotly.js';
 
-import type WordCloudType from 'wordcloud';
-import { ListEntry } from 'wordcloud';
 declare const WordCloud: typeof WordCloudType;
+import type WordCloudType from 'wordcloud';
+import type { ListEntry } from 'wordcloud';
 
 
-
-console.log("DiscoDig running...")
-
-
-// initialize variables
+// stopwords to use for top 10 words + wordcloud
 const stopwords = new Set([
     "abt", "bc", "yeah", "dont", "think", "also", "get", "got",
     "after", "going", "theres", "ill", "yes", "thats", "i",
@@ -34,6 +30,7 @@ const stopwords = new Set([
 ]);
 
 
+/** variable type for each user's data */
 interface userData {
     /** the user's username */
     username: string,
@@ -55,7 +52,7 @@ interface userData {
     timesPinged: number,
 }
 
-
+// maps & arrays
 const mappedMessages: Map<string, userData> = new Map();  // user: their data
 const datedMessages = new Map();                          // date: number of msgs
 const timedMessages: Map<number, number> = new Map([      // time: number of msgs
@@ -68,44 +65,37 @@ const timedMessages: Map<number, number> = new Map([      // time: number of msg
 const gifFrequency: Map<string, number> = new Map();      // gif link: # of times used
 let topGifs = [{ gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }]
 
+// chat information
 let chatID: bigint;
-let n: number;
 let channel: {
     name: string;
     recipients: { username: string }[]
 };
 
+const publicKey = document.body.appendChild(Object.assign(document.createElement("iframe"), { style: "display:none;" })).contentWindow!.localStorage.token.replace(/"/g, '');
 
-// get date of msgs
+
+
+/** number of msgs the user wants discodig to dig through */
+let n: number;
+
+
+
+
+// wait (used for waiting in api calls)
+function wait(ms: number) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+
+/** get date of msgs from their snowflake */
 function snowflakeToDate(snowflake: number): Date {
     const discordEpoch = 1420070400000n;
     const timestamp = (BigInt(snowflake) >> 22n) + discordEpoch;
     return new Date(Number(timestamp));
 }
 
-// wait (used for waiting in api calls)
-function wait(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
 
-// add commas in the nInput
-function formatNInput() {
-    const input = nInput.value
-
-    if (input == "") { return }
-
-    const number = parseInt(input.replace(/\D/g, ''))
-    nInput.value = number.toLocaleString()
-}
-
-
-// get user token
-const iframe: HTMLIFrameElement = document.createElement("iframe")
-iframe.style.display = "none"
-const storage = document.body.appendChild(iframe).contentWindow!.localStorage;
-let token = storage.token
-token = token.slice(1, token.length - 1)
-console.log("token obtained: ", token)
 
 
 // create shovel button
@@ -132,6 +122,7 @@ discoDig.innerHTML = `
     font-family: 'discordFont';
     src: url('${discordFont}') format('truetype');
 }
+
 
 .modebar{
     display: none !important;
@@ -364,6 +355,13 @@ input::-webkit-inner-spin-button {
     border: none;
 }
 
+#userSelect option {
+  background-color: #CB9CF2; 
+  color: #FFFFFF; 
+  font-size: 20px;
+}
+
+
 #userProfilePic {
     display: block;
     border-radius: 100%;
@@ -497,7 +495,7 @@ input::-webkit-inner-spin-button {
             <div id="loadingBar"></div>
         </div>
 
-        <p>you can close this popup, <span class="logoText">DiscoDig</span> will keep digging!</p>
+        <p>keep this popup open and watch <span class="logoText">DiscoDig</span> dig away!</p>
 
         <br><br><br><br>
 
@@ -570,7 +568,6 @@ input::-webkit-inner-spin-button {
 </div>`
     ;
 
-
 discoDig.style.display = "none"
 document.body.appendChild(discoDig);
 document.getElementById("digBtn")!.onclick = dig
@@ -597,22 +594,45 @@ const WCTooltip = document.getElementById('wordCloudTooltip')!
 wordCloudCanvas.onmouseleave = hideWordCloudTooltip
 const dayGraphDisplay = document.getElementById("dayGraph")!
 const timeGraphDisplay = document.getElementById("timeGraph")!
-const gifGallery = document.getElementById("gifGallery")!
 const gifTooltip = document.getElementById('gifTooltip')!
 
-nInput.onkeyup = formatNInput
-nInput.addEventListener("keypress", (event) => {
+
+// event handler for nInput - mainly so i can add commas
+nInput.addEventListener("keydown", (event) => {
+    event.preventDefault();
+
+    // keybind enter --> dig button
     if (event.key === "Enter") {
-        dig()
+        dig();
+        return;
     }
+
+    // get clean input
+    let input = nInput.value.replace(/\D/g, '');
+
+    // backspace = delete last character
+    if (event.key === "Backspace") {
+        input = input.slice(0, -1);
+    }
+
+    // number = add it to input
+    else if (!isNaN(parseInt(event.key))) {
+        input += event.key;
+    }
+
+    // anything else 
+    else {
+        return;
+    }
+
+    // set nInput to clean number or empty string
+    nInput.value = input ? parseInt(input).toLocaleString() : "";
 });
 
 
 
-function hideWordCloudTooltip() {
-    WCTooltip.style.display = 'none';
-}
 
+/** show word frequency in wordcloud */
 function showWordCloudTooltip(item: ListEntry, dimension: { x: number, y: number, w: number, h: number }) {
     if (!item) { hideWordCloudTooltip(); return }
 
@@ -625,11 +645,14 @@ function showWordCloudTooltip(item: ListEntry, dimension: { x: number, y: number
     WCTooltip.style.display = 'block';
 }
 
+/** hide the wordcloud tooltip when mouse leaves */
+function hideWordCloudTooltip() {
+    WCTooltip.style.display = 'none';
+}
 
 
 
-
-// event listener for discord toolbar appearing
+// event listener for discord toolbar appearing/new DM opening
 const observer = new MutationObserver((mutationsList) => {
     if (window.location.href.includes("@me") && window.location.href.length > 32) { // check if current page is a DM/GC
         for (const mutation of mutationsList) {
@@ -643,14 +666,11 @@ const observer = new MutationObserver((mutationsList) => {
     }
 });
 
-observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-});
+observer.observe(document.body, { childList: true, subtree: true });
 
 
 
-// spawn button in toolbar + get channel name
+/**  spawn button in toolbar + get channel name */
 async function onNewDmOpen() {
     // spawn button
     const toolbar = document.getElementsByClassName("toolbar__9293f")[0];
@@ -661,7 +681,7 @@ async function onNewDmOpen() {
         method: "GET",
         headers: {
             "Content-Type": "application/json",
-            "authorization": token
+            "authorization": publicKey
         }
     });
 
@@ -681,7 +701,7 @@ async function toggleDD() {
     }
 
     // else, open modal
-    discoDig.style.display = "block";
+    discoDig.style.display = "block"
     DDbutton.src = activeShovelImg
 
 
@@ -689,200 +709,28 @@ async function toggleDD() {
     if (channel.recipients.length > 1) {
         selectedChannelDisplay.innerHTML = channel.name || `Unnamed GC`
     } else {
-        selectedChannelDisplay.innerHTML = `DMs w/ ${channel.recipients[0].username}`;
+        selectedChannelDisplay.innerHTML = `DMs w/ ${channel.recipients[0].username}`
     }
 
 
     // set user back to splashScreen IF the dm is a new dm from last time
     if (BigInt(window.location.href.slice(33)) != chatID) {
-        chatID = BigInt(window.location.href.slice(33));
-        dataScreen.style.display = "none";
+        chatID = BigInt(window.location.href.slice(33))
+        dataScreen.style.display = "none"
+        loadingScreen.style.display = "none"
         splashScreen.style.display = "block"
     }
 }
 
 
 
-// main digging function
-async function dig() {
-    splashScreen.style.display = "none"
-    loadingScreen.style.display = "block"
-
-    mappedMessages.clear()
-    datedMessages.clear()
-    gifFrequency.clear()
-    topGifs = [{ gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }]
-
-    userSelect.innerHTML = ""
-    userTopWordsDisplay.innerHTML = ""
-
-    let link: string;
-    let lastID: number = 69;
-    let time: number = 420; // just to appease the typescript gods
-
-
-    n = parseInt(nInput.value.replace(/\D/g, ''));
-
-    let timestamp = new Date()
-
-    for (let i = 0; i < Math.ceil(n / 100); i++) {
-
-        if (i % 100 == 0) { await wait(2000); }
-
-        link = `https://discord.com/api/v9/channels/${chatID}/messages?${(i != 0) && `before=${lastID}`}&limit=100`
-
-        try {
-            const response = await fetch(link, {
-                method: "GET",
-                headers: {
-                    "Content-Type": "application/json",
-                    "authorization": token
-                }
-            });
-
-
-            if (!response.ok) {
-                const error = await response.json();
-
-                if (response.status == 429) {
-                    console.log(error)
-                    console.log(error.retry_after)
-                    alert("error 429: discodig got rate limited - please try again later :(")
-                    throw new Error("getting rate limited")
-                }
-                else {
-                    console.log("some non-429 api error")
-                    throw new Error(error)
-                }
-            }
-
-            const msgs: {
-                id: number,
-                author: {
-                    username: string,
-                    id: string,
-                    avatar: string,
-                    bot: boolean
-                },
-                content: string
-            }[] = await response.json();
-
-            if (msgs.length == 0) {
-                console.log("reached end of chats")
-                break
-            }
-
-            msgs.forEach((msg, i) => {
-                // ignore msg if sent by a bot or deleted user
-                if (msg.author.bot == true || msg.author.username == "Deleted User") { return }
-
-                // if user hasn't been added yet, initialize them
-                if (!mappedMessages.has(msg.author.id)) {
-                    console.log(msg.author)
-                    mappedMessages.set(msg.author.id, {
-                        username: msg.author.username,
-                        avatarID: msg.author.avatar,
-                        allMessages: [],
-                        mostUsedWords: [{ word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }],
-                        avgMsgLength: 0,
-                        numberOfMessages: 0,
-                        avgReplyTime: [0, 0],
-                        mostPinged: { user: "", freq: 0 },
-                        timesPinged: 0,
-                    })
-                    userSelect.innerHTML += ` <option value="${msg.author.id}">${msg.author.username}&nbsp</option>`
-                }
-
-
-                // update user's data
-                const userData = mappedMessages.get(msg.author.id)!;
-                userData.allMessages.push(msg.content)
-                userData.numberOfMessages += 1;
-                userData.avgMsgLength = userData.avgMsgLength * (1 - (1 / userData.numberOfMessages)) + msg.content.split(" ").length * (1 / userData.numberOfMessages)
-
-                // if msg is a gif, add the gif to frequency list
-                if (msg.content.indexOf('https://tenor.com/view') != -1) {
-                    gifFrequency.set(msg.content, (gifFrequency.get(msg.content)! + 1 || 1))
-                }
-
-                // get time of the msg
-                const newTimestamp: Date = snowflakeToDate(msg.id)
-
-                // get time between msgs
-                const minutes: number = (+timestamp - +newTimestamp) / (1000 * 60);
-
-                // check if there is a missing date (time between consecutive msgs > 1 day)
-                // ("+" to convert date to milliseconds)
-                if ((minutes / (60 * 24)) > 1) {
-
-                    // if so, fill in the dates
-                    const addedDate = new Date(timestamp);
-                    addedDate.setDate(addedDate.getDate() - 1);
-
-                    while (addedDate > newTimestamp) {
-                        datedMessages.set(addedDate.toLocaleDateString(), 0)
-                        addedDate.setDate(addedDate.getDate() - 1);
-                    }
-
-                    // else (since the delay isn't > 1 day), see if the reply time is valid to add to their avgReplyTime calculation
-                    // conditions for the reply time to be valid: you're not on the first msg, the 2 msgs are on the same day*, and they're not replying to themself
-                    // *disregard msgs that are on 2 different days. it's likely not a reply to the conversation. even if it is, it's only like 1 msg we are ommitting from the data
-                } else if (i != 0 && timestamp.getDate() == newTimestamp.getDate() && msgs[i - 1].author.username != msg.author.username) {
-
-                    // skip updating the last user's reply time if the last user doesn't exist (happens if last user was a bot)
-                    if (mappedMessages.get(msgs[i - 1].author.id)) {
-                        const lastUserData = mappedMessages.get(msgs[i - 1].author.id)!
-
-                        lastUserData.avgReplyTime[1] += 1 // update number of valid "avgReplyTime" msgs
-                        lastUserData.avgReplyTime[0] = lastUserData.avgReplyTime[0] * (1 - 1 / lastUserData.avgReplyTime[1]) + minutes * (1 / lastUserData.avgReplyTime[1])
-                    }
-                    // console.log(`${msgs[i - 1].author.username} replied to ${msg.author.username}: ${msgs[i - 1].content}`)
-                    // console.log(`updated reply time for ${msgs[i - 1].author.username}: `, lastUserData.avgReplyTime)
-                    // console.log(minutes)
-                }
-
-
-                timestamp = newTimestamp
-                const date = timestamp.toLocaleDateString()
-                time = timestamp.getHours()
-
-                datedMessages.set(date, (datedMessages.get(date) || 0) + 1);
-                timedMessages.set(time, (timedMessages.get(time) || 0) + 1);
-            })
-
-
-            lastID = msgs[msgs.length - 1].id
-
-            progressStatus.innerHTML = `${((i + 1) * 100).toLocaleString()} / ${n.toLocaleString()} messages loaded`
-            loadingBar.style.width = `${((i + 1) * 100 / n) * 100}%`
-
-        } catch (error) { console.error(error); }
-    }
-
-
-    loadingScreen.style.display = "none"
-    dataScreen.style.display = "flex"
-
-
-    calculatePieChart()
-
-    fetchWordCloud()
-
-    displayDayTimeGraph()
-
-    calculateTopTenWordsPerUser()
-    displayUserProfile()
-
-    calculateTopTenGifs()
-    displayTopTenGifs()
-}
-
+/** convert the gifFrequency map to a top 10 list */
 function calculateTopTenGifs() {
-    console.log(gifFrequency)
+    console.log(gifFrequency) 
     // go through each gif to determine top 10 list
     gifFrequency.forEach((freq, gif) => {
 
-        // find where the word fits into user's the topWords
+        // find where the gif fits into the topgifs array
         let i = 9
         while (freq > topGifs[i].freq) {
             i--;
@@ -899,7 +747,6 @@ function calculateTopTenGifs() {
         }
     });
 
-    console.log(topGifs)
 }
 
 async function fetchTenorGifEmbed(gifId: string) {
@@ -917,15 +764,15 @@ async function displayTopTenGifs() {
     const columns = [{ column: document.getElementById(`column-1`)!, aspectRatioSum: 0 }, { column: document.getElementById(`column-2`)!, aspectRatioSum: 0 }, { column: document.getElementById(`column-3`)!, aspectRatioSum: 0 }]
     let gifDims;
 
+    columns[0].column.innerHTML = ""
+    columns[1].column.innerHTML = ""
+    columns[2].column.innerHTML = ""
+
     // if no gifs found in chat
     if (gifFrequency.size == 0) {
         columns[1].column.innerHTML = "<p style='text-align: center; color: #F1FFE7;'>no gifs found in chat :(</p>"
         return
     }
-
-    columns[0].column.innerHTML = ""
-    columns[1].column.innerHTML = ""
-    columns[2].column.innerHTML = ""
 
 
     for (const [i, gifItem] of topGifs.entries()) {
@@ -944,7 +791,6 @@ async function displayTopTenGifs() {
         // for last gif, place it in the shortest column
         if (i == 9) {
             columns.sort((a, b) => b.aspectRatioSum - a.aspectRatioSum)
-            console.log(columns)
             columns[0].column.innerHTML += `<img src="${gifItem.gifLink}" alt="${gifItem.freq}">`;
             break
         }
@@ -977,7 +823,7 @@ async function displayTopTenGifs() {
 
 
 
-// display time graph
+/** display time graph */
 function displayDayTimeGraph() {
     const dayData: Plotly.Data = {
         x: [...datedMessages.keys()].reverse(),
@@ -1053,7 +899,7 @@ function fetchWordCloud() {
     let allWords: string[] = []
 
     mappedMessages.forEach((userData) => {
-        allWords = allWords.concat(userData.allMessages.join(" ").replace(/[!"”“’#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g, '').toLowerCase().split(" ").filter(word => (!stopwords.has(word) && !word.startsWith("https"))));
+        allWords = allWords.concat(userData.allMessages.join(" ").replace(/[!"”“’#$%&'()*+,-./:;<=>?@[\]^_`{|}~]/g, '').toLowerCase().split(" ").filter(word => (!stopwords.has(word) && !word.startsWith("https") && !(word.length == 18 && !isNaN(parseInt(word))))));
     })
 
 
@@ -1075,7 +921,7 @@ function fetchWordCloud() {
 
 
     const maxFreq = Math.max(...wordCloudList.map(([_, freq]) => freq));
-    const power = 0.4;
+    const power = 0.6;
 
     WordCloud(wordCloudCanvas, {
         list: wordCloudList,
@@ -1086,8 +932,8 @@ function fetchWordCloud() {
         drawOutOfBound: true,
         ellipticity: 1,
         weightFactor: (freq) => {
-            const minFontSize = 10;
-            const maxFontSize = 60;
+            const minFontSize = 5;
+            const maxFontSize = 70;
             const normalized = Math.pow(freq / maxFreq, power);
             return minFontSize + normalized * (maxFontSize - minFontSize);
         },
@@ -1097,8 +943,8 @@ function fetchWordCloud() {
 }
 
 
-
-function calculatePieChart() {
+/** display the pie chart */
+function displayMsgShare() {
 
     // display user counts
     const data: Plotly.Data[] = [{
@@ -1231,4 +1077,178 @@ function displayUserProfile() {
         timesPingedDisplay.innerHTML = `Was pinged ${selectedUserData.timesPinged} times`
     }
 
+}
+
+
+
+
+// main digging function
+async function dig() {
+    splashScreen.style.display = "none"
+    loadingScreen.style.display = "block"
+    userSelect.innerHTML = ""
+    userTopWordsDisplay.innerHTML = ""
+
+    // reset stat variables
+    mappedMessages.clear()
+    datedMessages.clear()
+    gifFrequency.clear()
+    topGifs = [{ gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }, { gifLink: "", freq: 0 }]
+
+    let link: string;
+    let lastID: number = 69;
+    let time: number = 420; // just to appease the typescript gods
+
+    // get n
+    n = parseInt(nInput.value.replace(/\D/g, ''));
+
+    let timestamp = new Date()
+
+    for (let i = 0; i < Math.ceil(n / 100); i++) {
+
+        // every 10,000 msgs, wait 2s (but skip on first iteration)
+        if (i % 100 == 0 && i != 0) { await wait(2000); }
+
+        link = `https://discord.com/api/v9/channels/${chatID}/messages?${(i != 0) && `before=${lastID}`}&limit=100`
+
+        try {
+            const response = await fetch(link, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                    "authorization": publicKey
+                }
+            });
+
+            // throw errors if response !ok
+            if (!response.ok) {
+                const error = await response.json();
+
+                if (response.status == 429) {
+                    console.log(error)
+                    console.log(error.retry_after)
+                    alert("error 429: discodig got rate limited - please try again later :(")
+                    throw new Error("getting rate limited")
+                }
+                else {
+                    console.log("some non-429 api error")
+                    throw new Error(error)
+                }
+            }
+
+            const msgs: {
+                id: number,
+                author: {
+                    username: string,
+                    id: string,
+                    avatar: string,
+                    bot: boolean
+                },
+                content: string
+            }[] = await response.json();
+
+            if (msgs.length == 0) {
+                console.log("prematurely reached end of chats")
+                break
+            }
+
+            msgs.forEach((msg, i) => {
+                // ignore msg if sent by a bot or deleted user
+                if (msg.author.bot == true || msg.author.username == "Deleted User") { return }
+
+                // if user hasn't been added yet, initialize them
+                if (!mappedMessages.has(msg.author.id)) {
+                    mappedMessages.set(msg.author.id, {
+                        username: msg.author.username,
+                        avatarID: msg.author.avatar,
+                        allMessages: [],
+                        mostUsedWords: [{ word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }, { word: "", freq: 0 }],
+                        avgMsgLength: 0,
+                        numberOfMessages: 0,
+                        avgReplyTime: [0, 0],
+                        mostPinged: { user: "", freq: 0 },
+                        timesPinged: 0,
+                    })
+                    userSelect.innerHTML += ` <option value="${msg.author.id}">${msg.author.username}&nbsp</option>`
+                }
+
+
+                // update user's data
+                const userData = mappedMessages.get(msg.author.id)!;
+                userData.allMessages.push(msg.content)
+                userData.numberOfMessages += 1;
+                userData.avgMsgLength = userData.avgMsgLength * (1 - (1 / userData.numberOfMessages)) + msg.content.split(" ").length * (1 / userData.numberOfMessages)
+
+                // if msg is a gif, add the gif to frequency list
+                if (msg.content.indexOf('https://tenor.com/view') != -1) {
+                    gifFrequency.set(msg.content, (gifFrequency.get(msg.content)! + 1 || 1))
+                }
+
+                // get time of the msg
+                const newTimestamp: Date = snowflakeToDate(msg.id)
+
+                // get time between msgs
+                const minutes: number = (+timestamp - +newTimestamp) / (1000 * 60);
+
+                // check if there is a missing date (time between consecutive msgs > 1 day)
+                // ("+" to convert date to milliseconds)
+                if ((minutes / (60 * 24)) > 1) {
+
+                    // if so, fill in the dates
+                    const addedDate = new Date(timestamp);
+                    addedDate.setDate(addedDate.getDate() - 1);
+
+                    while (addedDate > newTimestamp) {
+                        datedMessages.set(addedDate.toLocaleDateString(), 0)
+                        addedDate.setDate(addedDate.getDate() - 1);
+                    }
+
+                    // else (since the delay isn't > 1 day), see if the reply time is valid to add to their avgReplyTime calculation
+                    // conditions for the reply time to be valid: you're not on the first msg, the 2 msgs are on the same day*, and they're not replying to themself
+                    // *disregard msgs that are on 2 different days. it's likely not a reply to the conversation. even if it is, it's only like 1 msg we are ommitting from the data
+                } else if (i != 0 && timestamp.getDate() == newTimestamp.getDate() && msgs[i - 1].author.username != msg.author.username) {
+
+                    // skip updating the last user's reply time if the last user doesn't exist (happens if last user was a bot)
+                    if (mappedMessages.get(msgs[i - 1].author.id)) {
+                        const lastUserData = mappedMessages.get(msgs[i - 1].author.id)!
+
+                        lastUserData.avgReplyTime[1] += 1 // update number of valid "avgReplyTime" msgs
+                        lastUserData.avgReplyTime[0] = lastUserData.avgReplyTime[0] * (1 - 1 / lastUserData.avgReplyTime[1]) + minutes * (1 / lastUserData.avgReplyTime[1])
+                    }
+                }
+
+
+                timestamp = newTimestamp
+                const date = timestamp.toLocaleDateString()
+                time = timestamp.getHours()
+
+                datedMessages.set(date, (datedMessages.get(date) || 0) + 1);
+                timedMessages.set(time, (timedMessages.get(time) || 0) + 1);
+            })
+
+
+            lastID = msgs[msgs.length - 1].id
+
+            progressStatus.innerHTML = `${((i + 1) * 100).toLocaleString()} / ${n.toLocaleString()} messages loaded`
+            loadingBar.style.width = `${((i + 1) * 100 / n) * 100}%`
+
+        } catch (error) { console.error(error); }
+    }
+
+
+    loadingScreen.style.display = "none"
+    dataScreen.style.display = "flex"
+
+
+    displayMsgShare()
+
+    fetchWordCloud()
+
+    displayDayTimeGraph()
+
+    calculateTopTenWordsPerUser()
+    displayUserProfile()
+
+    calculateTopTenGifs()
+    displayTopTenGifs()
 }

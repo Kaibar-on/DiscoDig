@@ -1,19 +1,19 @@
 {
   "manifest_version": 3,
   "name": "DiscoDig",
-  "description": "Dig your Discord data out with the DiscoDig data collector!",
+  "description": "Get fun analytics from your Discord DMs and GCs!",
   "version": "1.0",
   "icons": {
-    "128": "assets/imgs/logo.jpg"
+    "128": "assets/imgs/logo128.png",
+    "64": "assets/imgs/logo48.png",
+    "16": "assets/imgs/logo16.png"
   },
-  "permissions": ["storage"],
   "content_scripts": [
     {
       "js": [
         "libs/plotly.js", "libs/wordcloud2.min.js", "content.js"
       ],
       "matches": [
-        "https://*.discord.com/*",
         "https://*.discord.com/channels/@me/*"
       ],
       "run_at": "document_idle"
