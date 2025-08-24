@@ -750,7 +750,7 @@ function calculateTopTenGifs() {
 }
 
 async function fetchTenorGifEmbed(gifId: string) {
-    const apiKey = "LIVDSRZULELA"; // Tenor's public demo key - replace with own
+    const apiKey = "LIVDSRZULELA"; // tenor PUBLIC api key
     const res = await fetch(`https://g.tenor.com/v1/gifs?ids=${gifId}&key=${apiKey}`);
     const data = await res.json();
 
