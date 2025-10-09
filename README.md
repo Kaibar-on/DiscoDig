@@ -1,7 +1,7 @@
 gets fun n interesting stats from a discord dm or groupchat   
 check out the [chrome extensions page](https://chromewebstore.google.com/detail/discodig/jdmfjjgfcajnfgibhmbacgfiiikbddoc)   
 
-to run yourself:
+to run it yourself:
 - run npm install
 - run npm blastoff to build dev version
 - run npm tothemoon to build prod version
