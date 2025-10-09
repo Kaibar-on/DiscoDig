@@ -1,4 +1,4 @@
 - run npm install
 - run npm blastoff for dev
 - run npm tothemoon for prod
-- push "app" folder to chrome extensions
+- load unpacked "app" folder in chrome extensions
